@@ -30,8 +30,8 @@ adb shell am start -n $M --ez stop_rec true; sleep 8
 adb shell am start -n $M --ei open_tab 1; sleep 3; adb exec-out screencap -p > shots/api${API}_4_library.png
 adb shell am start -n $M --ez open_latest true; sleep 4; adb exec-out screencap -p > shots/api${API}_5_detail.png
 adb shell am start -n $M --ei open_tab 3; sleep 3; adb exec-out screencap -p > shots/api${API}_6_more.png
-adb shell input swipe 500 1600 500 300 300; sleep 2; adb exec-out screencap -p > shots/api${API}_7_more2.png
-adb shell input swipe 500 1600 500 300 300; sleep 2; adb exec-out screencap -p > shots/api${API}_8_more3.png
+W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1); WW=${W%x*}; HH=${W#*x}; adb shell input swipe $((WW/2)) $((HH*8/10)) $((WW/2)) $((HH*2/10)) 300; sleep 2; adb exec-out screencap -p > shots/api${API}_7_more2.png
+W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1); WW=${W%x*}; HH=${W#*x}; adb shell input swipe $((WW/2)) $((HH*8/10)) $((WW/2)) $((HH*2/10)) 300; sleep 2; adb exec-out screencap -p > shots/api${API}_8_more3.png
 adb shell am start -n $M --ei open_tab 0 --es set_theme dark; sleep 3; adb exec-out screencap -p > shots/api${API}_9_dark.png
 adb shell am start -n $M --ei open_tab 0 --es set_theme soft; sleep 3; adb exec-out screencap -p > shots/api${API}_10_soft.png
 adb shell am start -n $M --ei open_tab 0 --es set_theme frosted; sleep 3; adb exec-out screencap -p > shots/api${API}_11_frosted.png

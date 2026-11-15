@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -89,6 +90,13 @@ fun AppRoot(act: MainActivity) {
         }
     }
     LaunchedEffect(act.tab.intValue) { if (act.tab.intValue == 0) act.arm() else act.disarm() }
+    val lightTop = theme.top.luminance() > 0.5f
+    LaunchedEffect(lightTop, theme.key) {
+        androidx.core.view.WindowCompat.getInsetsController(act.window, act.window.decorView).apply {
+            isAppearanceLightStatusBars = lightTop
+            isAppearanceLightNavigationBars = theme.light
+        }
+    }
     BackHandler(enabled = act.openRec.value.isNotEmpty() || act.tab.intValue != 0) {
         if (act.openRec.value.isNotEmpty()) act.openRec.value = "" else act.tab.intValue = 0
     }

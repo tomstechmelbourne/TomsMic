@@ -108,7 +108,10 @@ class RecorderService : Service() {
         super.onDestroy()
     }
 
+    private var lastStartId = 0
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lastStartId = startId
         if (!goForeground()) { stopSelf(); return START_NOT_STICKY }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             Live.message.value = t("Microphone permission is needed.", "Cần cho phép dùng micro.")
@@ -271,8 +274,8 @@ class RecorderService : Service() {
 
     private fun stopIfIdle() {
         if (!standby && !armed && Live.state.value in setOf(RecState.IDLE)) {
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            // stopSelf(id) does not stop if a newer command (e.g. Record right after leaving the page) is already queued
+            if (stopSelfResult(lastStartId)) ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         }
     }
 
