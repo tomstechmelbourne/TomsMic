@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Tom\'s Mic</string>
+    <string name="widget_name">Tom\'s Mic</string>
+    <string name="widget_desc">Record with one tap · Thâu bằng một chạm</string>
+    <string name="tile_label">Tom\'s Mic</string>
+    <string name="acc_desc">Tom\'s Mic uses this only to start and keep recording phone calls when you choose \"Automatic (Accessibility)\". It does not read your screen. · Tom\'s Mic chỉ dùng quyền này để tự thâu cuộc gọi khi Tom chọn \"Tự Động (Trợ Năng)\". Không đọc màn hình.</string>
+    <string name="sc_record">Record Now · Thâu Ngay</string>
+    <string name="sc_note">Quick Note · Ghi Chú Nhanh</string>
+    <string name="sc_last">Latest Recording · Bản Thâu Gần Nhất</string>
+</resources>

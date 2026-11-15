@@ -1,0 +1,11 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="record" android:enabled="true" android:icon="@drawable/app_logo" android:shortcutShortLabel="@string/sc_record">
+        <intent android:action="com.tomstechsolutions.mic.RECORD" android:targetPackage="com.tomstechsolutions.mic" android:targetClass="com.tomstechsolutions.mic.ui.MainActivity"/>
+    </shortcut>
+    <shortcut android:shortcutId="note" android:enabled="true" android:icon="@drawable/app_logo" android:shortcutShortLabel="@string/sc_note">
+        <intent android:action="com.tomstechsolutions.mic.NOTE" android:targetPackage="com.tomstechsolutions.mic" android:targetClass="com.tomstechsolutions.mic.ui.MainActivity"/>
+    </shortcut>
+    <shortcut android:shortcutId="last" android:enabled="true" android:icon="@drawable/app_logo" android:shortcutShortLabel="@string/sc_last">
+        <intent android:action="com.tomstechsolutions.mic.LAST" android:targetPackage="com.tomstechsolutions.mic" android:targetClass="com.tomstechsolutions.mic.ui.MainActivity"/>
+    </shortcut>
+</shortcuts>

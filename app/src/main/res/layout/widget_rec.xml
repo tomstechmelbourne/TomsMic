@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="12dp" android:background="@drawable/w_bg">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/w_brand" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:text="TOM'S MIC" android:textColor="#FBB040" android:textStyle="bold" android:textSize="15sp"/>
+        <TextView android:id="@+id/w_mode" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:background="@drawable/w_chip" android:paddingLeft="6dp" android:paddingRight="6dp" android:textColor="#7A4A00" android:textSize="11sp"/>
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical">
+        <FrameLayout android:id="@+id/w_btn" android:layout_width="58dp" android:layout_height="58dp" android:background="@drawable/w_rec">
+            <ImageView android:id="@+id/w_btn_icon" android:layout_width="26dp" android:layout_height="26dp" android:layout_gravity="center" android:src="@drawable/g_record"/>
+        </FrameLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical" android:paddingLeft="10dp">
+            <ImageView android:id="@+id/w_wave" android:layout_width="match_parent" android:layout_height="34dp" android:scaleType="fitXY"/>
+            <TextView android:id="@+id/w_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#CFE6EE" android:textSize="12sp"/>
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <TextView android:id="@+id/w_mark" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:textColor="#CFE6EE" android:textSize="11sp" android:padding="4dp"/>
+        <TextView android:id="@+id/w_list" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:textColor="#CFE6EE" android:textSize="11sp" android:padding="4dp"/>
+        <TextView android:id="@+id/w_note" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:textColor="#CFE6EE" android:textSize="11sp" android:padding="4dp"/>
+    </LinearLayout>
+</LinearLayout>
