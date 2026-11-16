@@ -74,7 +74,7 @@ fun Modifier.tap(enabled: Boolean = true, sink: Float = 0.95f, onLong: (() -> Un
 @Composable
 fun TDialog(onDismissRequest: () -> Unit, confirmButton: @Composable () -> Unit, modifier: Modifier = Modifier, dismissButton: (@Composable () -> Unit)? = null,
             title: (@Composable () -> Unit)? = null, text: (@Composable () -> Unit)? = null) {
-    TDialog(onDismissRequest = onDismissRequest, confirmButton = confirmButton, modifier = modifier, dismissButton = dismissButton, title = title, text = text,
+    AlertDialog(onDismissRequest = onDismissRequest, confirmButton = confirmButton, modifier = modifier, dismissButton = dismissButton, title = title, text = text,
         containerColor = th.dialogBg, titleContentColor = th.text, textContentColor = th.text, iconContentColor = th.accent)
 }
 

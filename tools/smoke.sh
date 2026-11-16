@@ -32,6 +32,18 @@ adb shell am start -n $M --ez open_latest true; sleep 4; adb exec-out screencap 
 adb shell am start -n $M --ei open_tab 3; sleep 3; adb exec-out screencap -p > shots/api${API}_6_more.png
 W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1); WW=${W%x*}; HH=${W#*x}; adb shell input swipe $((WW/2)) $((HH*8/10)) $((WW/2)) $((HH*2/10)) 300; sleep 2; adb exec-out screencap -p > shots/api${API}_7_more2.png
 W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1); WW=${W%x*}; HH=${W#*x}; adb shell input swipe $((WW/2)) $((HH*8/10)) $((WW/2)) $((HH*2/10)) 300; sleep 2; adb exec-out screencap -p > shots/api${API}_8_more3.png
+# 0.9.1: MP3 + music mode + new waves, the notification must go away when leaving the app
+adb shell am start -n $M --ei open_tab 0 --es set_mode music --es set_format mp3 --ei set_wave 94 --es set_colour native; sleep 4; adb exec-out screencap -p > shots/api${API}_20_music_matrix.png
+adb shell am start -n $M -a com.tomstechsolutions.mic.RECORD; sleep 4
+for wv in 84 86 87 88 92 93 95 96 97 98 85 89 90 91; do adb shell am start -n $M --ei set_wave $wv; sleep 2; adb exec-out screencap -p > shots/api${API}_21_wave_$wv.png; done
+adb shell am start -n $M --ez stop_rec true; sleep 10
+adb shell am start -n $M --ei open_tab 1; sleep 3; adb exec-out screencap -p > shots/api${API}_22_library_mp3.png
+adb shell am start -n $M --ez open_latest true; sleep 4; adb exec-out screencap -p > shots/api${API}_23_detail_mp3.png
+adb shell input swipe $((WW/2)) $((HH*8/10)) $((WW/2)) $((HH*2/10)) 300; sleep 2; adb exec-out screencap -p > shots/api${API}_24_detail_more.png
+adb shell am start -n $M --ei open_tab 0 --es set_mode interview --es set_format flac --ei set_wave 70 --es set_colour rec; sleep 3
+adb shell input keyevent KEYCODE_HOME; sleep 6
+adb shell dumpsys notification --noredact | grep -A3 "pkg=com.tomstechsolutions.mic" > shots/api${API}_notif_after_home.txt
+echo "notifications left: $(grep -c 'pkg=com.tomstechsolutions.mic' shots/api${API}_notif_after_home.txt)"
 adb shell am start -n $M --ei open_tab 0 --es set_theme dark; sleep 3; adb exec-out screencap -p > shots/api${API}_9_dark.png
 adb shell am start -n $M --ei open_tab 0 --es set_theme soft; sleep 3; adb exec-out screencap -p > shots/api${API}_10_soft.png
 adb shell am start -n $M --ei open_tab 0 --es set_theme frosted; sleep 3; adb exec-out screencap -p > shots/api${API}_11_frosted.png

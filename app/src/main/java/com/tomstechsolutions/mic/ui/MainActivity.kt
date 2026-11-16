@@ -67,6 +67,11 @@ class MainActivity : FragmentActivity() {
         if (i.getBooleanExtra("open_latest", false)) Store.live().firstOrNull()?.let { tab.intValue = 1; openRec.value = it.id }
         if (i.hasExtra("set_theme")) Prefs.theme.value = i.getStringExtra("set_theme") ?: "toms"
         if (i.getBooleanExtra("stop_rec", false)) RecorderService.send(this, RecorderService.A_STOP)
+        i.getStringExtra("set_mode")?.let { applyMode(it) }
+        i.getStringExtra("set_format")?.let { Prefs.format.value = it }
+        i.getStringExtra("set_colour")?.let { Prefs.waveColour.value = it }
+        if (i.hasExtra("set_wave")) Prefs.waveStyle.value = i.getIntExtra("set_wave", 70)
+        i.getStringExtra("open_rec_by_title")?.let { k -> Store.live().firstOrNull { it.title.contains(k) }?.let { tab.intValue = 1; openRec.value = it.id } }
     }
 
     fun has(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
