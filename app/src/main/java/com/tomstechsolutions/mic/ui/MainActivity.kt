@@ -78,7 +78,7 @@ class MainActivity : FragmentActivity() {
             val r = list.firstOrNull() ?: return@thread
             fun step(name: String, f: () -> Unit) { try { val t0 = System.currentTimeMillis(); f(); log.append("$name OK ${System.currentTimeMillis() - t0} ms\n") } catch (e: Throwable) { log.append("$name FAIL $e\n"); android.util.Log.e("TomsMicTest", name, e) } }
             step("video") {
-                val out = java.io.File(cacheDir, "test.mp4")
+                val out = java.io.File(getExternalFilesDir(null) ?: cacheDir, "test.mp4")
                 com.tomstechsolutions.mic.audio.Audiogram.make(this, r, 0, minOf(r.durationMs, 6000), com.tomstechsolutions.mic.audio.Audiogram.Opts(false, true, 96, waveColours(), r.title), out) { }
                 log.append("video size ${out.length()}\n")
             }
