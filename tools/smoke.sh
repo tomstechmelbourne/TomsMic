@@ -40,6 +40,7 @@ adb shell am start -n $M --ez stop_rec true; sleep 10
 adb shell am start -n $M --ei open_tab 1; sleep 3; adb exec-out screencap -p > shots/api${API}_22_library_mp3.png
 adb shell am start -n $M --ez open_latest true; sleep 4; adb exec-out screencap -p > shots/api${API}_23_detail_mp3.png
 adb shell input swipe $((WW/2)) $((HH*8/10)) $((WW/2)) $((HH*2/10)) 300; sleep 2; adb exec-out screencap -p > shots/api${API}_24_detail_more.png
+adb shell am start -n $M --ei open_tab 1 --ez test_jobs true; sleep 40; adb exec-out screencap -p > shots/api${API}_25_jobs.png
 adb shell am start -n $M --ei open_tab 0 --es set_mode interview --es set_format flac --ei set_wave 70 --es set_colour rec; sleep 3
 adb shell input keyevent KEYCODE_HOME; sleep 6
 adb shell dumpsys notification --noredact | grep -A3 "pkg=com.tomstechsolutions.mic" > shots/api${API}_notif_after_home.txt

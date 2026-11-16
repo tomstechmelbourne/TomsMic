@@ -71,6 +71,27 @@ class MainActivity : FragmentActivity() {
         i.getStringExtra("set_format")?.let { Prefs.format.value = it }
         i.getStringExtra("set_colour")?.let { Prefs.waveColour.value = it }
         if (i.hasExtra("set_wave")) Prefs.waveStyle.value = i.getIntExtra("set_wave", 70)
+        // emulator test of the heavy jobs (Video Sóng, Hậu Kỳ, Ghép)
+        if (i.getBooleanExtra("test_jobs", false)) kotlin.concurrent.thread(name = "TomsMic-test") {
+            val log = StringBuilder()
+            val list = Store.live()
+            val r = list.firstOrNull() ?: return@thread
+            fun step(name: String, f: () -> Unit) { try { val t0 = System.currentTimeMillis(); f(); log.append("$name OK ${System.currentTimeMillis() - t0} ms\n") } catch (e: Throwable) { log.append("$name FAIL $e\n"); android.util.Log.e("TomsMicTest", name, e) } }
+            step("video") {
+                val out = java.io.File(cacheDir, "test.mp4")
+                com.tomstechsolutions.mic.audio.Audiogram.make(this, r, 0, minOf(r.durationMs, 6000), com.tomstechsolutions.mic.audio.Audiogram.Opts(false, true, 96, waveColours(), r.title), out) { }
+                log.append("video size ${out.length()}\n")
+            }
+            step("polish") {
+                val w = java.io.File(cacheDir, "t.wav"); val o = java.io.File(cacheDir, "t2.wav")
+                com.tomstechsolutions.mic.audio.Codecs.decodeToWav(this, android.net.Uri.parse(r.uri), w)
+                com.tomstechsolutions.mic.audio.PostFx.process(w, o, com.tomstechsolutions.mic.audio.PostFx.Opts(true, true, true, true)) { }
+                log.append("polish size ${o.length()}\n")
+            }
+            if (list.size >= 2) step("join") { val o = java.io.File(cacheDir, "j.wav"); com.tomstechsolutions.mic.audio.PostFx.join(this, list.take(2), o) { }; log.append("join size ${o.length()}\n") }
+            android.util.Log.i("TomsMicTest", log.toString().replace("\n", " | "))
+            runOnUiThread { Live.message.value = log.toString() }
+        }
         i.getStringExtra("open_rec_by_title")?.let { k -> Store.live().firstOrNull { it.title.contains(k) }?.let { tab.intValue = 1; openRec.value = it.id } }
     }
 

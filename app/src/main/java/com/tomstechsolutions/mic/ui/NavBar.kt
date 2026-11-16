@@ -75,23 +75,24 @@ private val glyphsOn = listOf("◉", "≣", "✆", "•••")
 fun NavBar(act: MainActivity) {
     val labels = listOf(t("Record", "Thâu"), t("Recordings", "Bản Thâu"), t("Calls", "Cuộc Gọi"), t("More", "Thêm"))
     val sel = act.tab.intValue
+    val short = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500     // landscape / DeX: a lower bar
     val ms = NavFx.ms
     Box(Modifier.fillMaxWidth().background(th.nav).navigationBarsPadding()) {
-        BoxWithConstraints(Modifier.fillMaxWidth().height(if (NavFx.on("label")) 66.dp else 70.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().height(if (short) 52.dp else if (NavFx.on("label")) 66.dp else 70.dp)) {
             val cellW = maxWidth / 4
             if (NavFx.on("pill")) {
                 val x by animateDpAsState(cellW * sel, spring(dampingRatio = 0.72f, stiffness = if (Prefs.navFxSpeed.value == "fast") 700f else 380f), label = "pill")
                 Box(Modifier.offset(x = x + cellW * 0.12f, y = 7.dp).width(cellW * 0.76f).height(38.dp).clip(RoundedCornerShape(19.dp)).background(th.accent.copy(alpha = 0.18f)))
             }
             Row(Modifier.fillMaxSize()) {
-                for (i in 0 until 4) NavItem(act, i, labels[i], i == sel, ms, Modifier.weight(1f))
+                for (i in 0 until 4) NavItem(act, i, labels[i], i == sel, ms, Modifier.weight(1f), short)
             }
         }
     }
 }
 
 @Composable
-private fun NavItem(act: MainActivity, i: Int, label: String, on: Boolean, ms: Int, modifier: Modifier) {
+private fun NavItem(act: MainActivity, i: Int, label: String, on: Boolean, ms: Int, modifier: Modifier, short: Boolean = false) {
     val bounce = remember { Animatable(1f) }
     val ripple = remember { Animatable(1f) }
     val sweep = remember { Animatable(1f) }
@@ -109,8 +110,8 @@ private fun NavItem(act: MainActivity, i: Int, label: String, on: Boolean, ms: I
     Column(modifier.fillMaxSize().clickable(interactionSource = src, indication = null) {
         if (Prefs.navFxHaptic.value && Prefs.haptics.value) Haptics.tick(App.ctx, light = true)
         act.tab.intValue = i; if (i != 1) act.openRec.value = ""
-    }.padding(top = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(width = 64.dp, height = 38.dp), contentAlignment = Alignment.Center) {
+    }.padding(top = if (short) 2.dp else 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(width = 64.dp, height = if (short) 28.dp else 38.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
                 val c = Offset(size.width / 2, size.height / 2)
                 if (glow > 0f) drawCircle(Brush.radialGradient(listOf(th.accent.copy(alpha = 0.45f * glow), Color.Transparent), c, size.height * 0.9f), size.height * 0.9f, c)
@@ -126,7 +127,7 @@ private fun NavItem(act: MainActivity, i: Int, label: String, on: Boolean, ms: I
                 0 -> 1f + 0.25f * kotlin.math.sin(turn.value * 6.283f * 2)                // pulse
                 else -> 1f
             } else 1f
-            Text(g, color = col, fontSize = 27.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.graphicsLayer {
+            Text(g, color = col, fontSize = if (short) 21.sp else 27.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.graphicsLayer {
                 val b = bounce.value
                 scaleX = b * wiggle; scaleY = b * wiggle
                 if (iconFx) when (i) {
@@ -140,7 +141,7 @@ private fun NavItem(act: MainActivity, i: Int, label: String, on: Boolean, ms: I
             AnimatedVisibility(on, enter = fadeIn(tween(ms)) + expandVertically(tween(ms)), exit = fadeOut(tween(ms)) + shrinkVertically(tween(ms))) {
                 Text(label, color = col, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
-        } else Text(label, color = col, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+        } else Text(label, color = col, fontSize = if (short) 11.sp else 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
         if (NavFx.on("dot")) {
             val a by animateFloatAsState(if (on) 1f else 0f, tween(ms), label = "dot")
             Spacer(Modifier.height(2.dp))
