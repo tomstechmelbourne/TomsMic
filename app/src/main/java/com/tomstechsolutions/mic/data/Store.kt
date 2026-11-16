@@ -12,6 +12,9 @@ import java.io.File
 /** One line of text from speech to text. speaker: 0 = unknown, 1 = channel 1, 2 = channel 2. */
 data class Seg(val t0: Long, val t1: Long, var text: String, val speaker: Int = 0, var tr: String = "")
 
+/** One thing to do found in the text (Việc Cần Làm). */
+data class Todo(var text: String, var done: Boolean = false, val t0: Long = -1)
+
 /** One recording. The sound file itself lives in Music/Tom's Mic/Recordings so other apps can open it. */
 data class Rec(
     val id: String,
@@ -37,6 +40,10 @@ data class Rec(
     var note: String = "",
     var peaks: String = "",      // waveform summary for the detail screen (hex bytes)
     var imported: Boolean = false,
+    var fav: Boolean = false,        // ★ Yêu Thích
+    var memo: String = "",           // ghi chú chữ của Tom
+    var todos: MutableList<Todo> = mutableListOf(),
+    var safety: Boolean = false,     // Bản Dự Phòng −6 dB
 ) {
     fun toJson() = JSONObject().apply {
         put("id", id); put("title", title); put("created", created); put("dur", durationMs); put("format", format)
@@ -44,6 +51,8 @@ data class Rec(
         put("device", device); put("marks", JSONArray(marks)); put("locked", locked); put("trashed", trashedAt)
         put("segs", JSONArray().apply { segs.forEach { s -> put(JSONObject().apply { put("a", s.t0); put("b", s.t1); put("x", s.text); put("s", s.speaker); put("tr", s.tr) }) } })
         put("sttLang", sttLang); put("trLang", trLang); put("channel", channel); put("pair", pairId); put("note", note); put("peaks", peaks); put("imported", imported)
+        put("fav", fav); put("memo", memo); put("safety", safety)
+        put("todos", JSONArray().apply { todos.forEach { d -> put(JSONObject().apply { put("x", d.text); put("d", d.done); put("t", d.t0) }) } })
     }
 
     companion object {
@@ -55,6 +64,9 @@ data class Rec(
             o.optBoolean("locked"), o.optLong("trashed"),
             o.optJSONArray("segs")?.let { a -> MutableList(a.length()) { i -> a.getJSONObject(i).let { s -> Seg(s.optLong("a"), s.optLong("b"), s.optString("x"), s.optInt("s"), s.optString("tr")) } } } ?: mutableListOf(),
             o.optString("sttLang"), o.optString("trLang"), o.optInt("channel"), o.optString("pair"), o.optString("note"), o.optString("peaks"), o.optBoolean("imported"),
+            o.optBoolean("fav"), o.optString("memo"),
+            o.optJSONArray("todos")?.let { a -> MutableList(a.length()) { i -> a.getJSONObject(i).let { d -> Todo(d.optString("x"), d.optBoolean("d"), d.optLong("t", -1)) } } } ?: mutableListOf(),
+            o.optBoolean("safety"),
         )
     }
 }

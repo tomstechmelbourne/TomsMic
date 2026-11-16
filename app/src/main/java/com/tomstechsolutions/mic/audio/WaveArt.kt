@@ -17,6 +17,7 @@ object WaveArt {
         "brand" -> intArrayOf(0xFF48B0C8.toInt(), 0xFF0E88AA.toInt(), 0xFFFBB040.toInt(), 0xFF7EE3C1.toInt(), 0xFFF59E3D.toInt())
         "rainbow" -> intArrayOf(0xFFEF4444.toInt(), 0xFFF59E0B.toInt(), 0xFF2ECC8F.toInt(), 0xFF4F8FF0.toInt(), 0xFFA78BFA.toInt())
         "ocean" -> intArrayOf(0xFF0E88AA.toInt(), 0xFF2BC4C4.toInt(), 0xFF7EE3C1.toInt(), 0xFF48B0C8.toInt(), 0xFF3F7CC4.toInt())
+        "native" -> intArrayOf(0xFFFF3B6B.toInt(), 0xFFE040FB.toInt(), 0xFF7C4DFF.toInt(), 0xFF448AFF.toInt(), 0xFF18FFFF.toInt())
         "sunset" -> intArrayOf(0xFFF472B6.toInt(), 0xFFFB7185.toInt(), 0xFFFBB040.toInt(), 0xFFFF7F6A.toInt(), 0xFFF59E3D.toInt())
         else -> intArrayOf(0xFFE5533D.toInt(), 0xFFF27A3A.toInt(), 0xFFFBB040.toInt(), 0xFFFF6B8B.toInt(), 0xFFF59E3D.toInt())
     }

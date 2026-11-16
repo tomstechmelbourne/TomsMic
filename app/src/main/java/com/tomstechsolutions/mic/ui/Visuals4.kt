@@ -1,4 +1,4 @@
-// Copied from Tom's Jukebox (same wave code, as Tom asked) — do not edit here, edit in Jukebox and copy again.
+// Copied from Tom's Jukebox; Tom's Mic change: the palette follows the chosen wave colours (VizCtx.native = Jukebox colours).
 package com.tomstechsolutions.mic.ui
 
 import androidx.compose.ui.geometry.CornerRadius
@@ -20,7 +20,8 @@ val VIVID = listOf(Color(0xFFFF3B6B), Color(0xFFE040FB), Color(0xFF7C4DFF), Colo
 /** 6 sóng nhạc nhiều màu (70–75), mềm mại kiểu điện thoại đời mới – hình vẽ riêng của Tom's Jukebox. */
 fun DrawScope.drawViz4(style: Int, time: Float, lv: FloatArray, cols: List<Color>) {
     val w = size.width; val h = size.height; val n = lv.size
-    val pal = VIVID
+    // Tom's Mic: follow the chosen colours unless "Màu Gốc Của Kiểu Sóng" is chosen
+    val pal = if (VizCtx.native) VIVID else spread6(cols)
     fun level(fx: Float, shift: Int): Float {                       // smooth level along x from the bands
         var a = 0f
         for (b in 0 until 5) { val c = (b * 0.21f + 0.08f + shift * 0.05f + time * 0.03f * (1 + shift % 3)) % 1.05f
@@ -68,7 +69,7 @@ fun DrawScope.drawViz4(style: Int, time: Float, lv: FloatArray, cols: List<Color
             val sets = listOf(VIVID, listOf(Color(0xFFFFD1DC), Color(0xFFB388FF), Color(0xFF80D8FF), Color(0xFFFFFFFF), Color(0xFFFFE0B2), Color(0xFFB9F6CA)),
                 listOf(Color(0xFFFF6E40), Color(0xFFFF4081), Color(0xFFFFAB40), Color(0xFFAA00FF), Color(0xFFFFD740), Color(0xFFFF8A80)),
                 listOf(Color(0xFF00E5FF), Color(0xFF2979FF), Color(0xFF1DE9B6), Color(0xFF651FFF), Color(0xFF84FFFF), Color(0xFF00B0FF)))
-            val pc = sets[style - 76]
+            val pc = if (VizCtx.native) sets[style - 76] else spread6(cols)
             val ribbons = if (style == 77) 3 else 5
             for (li in 0 until ribbons) {
                 val top = Path(); val bot = Path(); val pts = 70
@@ -88,7 +89,7 @@ fun DrawScope.drawViz4(style: Int, time: Float, lv: FloatArray, cols: List<Color
         in 80..83 -> {                                                                   // 4 kiểu bắc cực quang
             val sets = listOf(listOf(Color(0xFF00E676), Color(0xFF1DE9B6), Color(0xFF00B0FF)), listOf(Color(0xFFE040FB), Color(0xFFFF4081), Color(0xFF7C4DFF)),
                 listOf(Color(0xFF69F0AE), Color(0xFFB388FF), Color(0xFF18FFFF)), listOf(Color(0xFF00E5FF), Color(0xFF76FF03), Color(0xFFEA80FC)))
-            val pc = sets[style - 80]
+            val pc = if (VizCtx.native) sets[style - 80] else spread6(cols)
             drawRect(Brush.verticalGradient(listOf(Color(0xFF020814), Color(0xFF071B2E))))
             for (k in 0 until 40) { val sx = ((k * 0.618f) % 1f) * w; val sy = ((k * 0.377f) % 1f) * h * 0.6f
                 drawCircle(Color.White.copy(alpha = 0.3f + 0.4f * sin(time * 2f + k).let { it * it }), 1.2f, Offset(sx, sy)) }
@@ -119,3 +120,6 @@ fun DrawScope.drawViz4(style: Int, time: Float, lv: FloatArray, cols: List<Color
     }
     @Suppress("UNUSED_VARIABLE") val unused = cols
 }
+
+/** 6 colours from the chosen wave colours (5), so the multicolour styles follow Tom's choice. */
+fun spread6(cols: List<Color>): List<Color> = List(6) { i -> cols[i % cols.size].let { c -> if (i >= cols.size) Color(c.red * 0.85f + 0.15f, c.green * 0.85f + 0.15f, c.blue * 0.85f + 0.15f, 1f) else c } }

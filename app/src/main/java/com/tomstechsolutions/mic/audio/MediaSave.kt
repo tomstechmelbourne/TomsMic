@@ -56,6 +56,24 @@ object MediaSave {
         return Uri.fromFile(f)
     }
 
+    /** Wave videos: Movies/Tom's Mic. */
+    fun saveVideo(ctx: Context, src: File) {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val cv = ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, src.name)
+                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/Tom's Mic")
+            }
+            val uri = ctx.contentResolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), cv) ?: return
+            ctx.contentResolver.openOutputStream(uri)!!.use { o -> src.inputStream().use { it.copyTo(o, 1 shl 16) } }
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Tom's Mic").apply { mkdirs() }
+            val f = unique(File(dir, src.name)); src.copyTo(f, true)
+            MediaScannerConnection.scanFile(ctx, arrayOf(f.path), arrayOf("video/mp4"), null)
+        }
+    }
+
     fun safe(s: String) = s.replace(Regex("[\\\\/:*?\"<>|]"), "-").trim().take(80).ifEmpty { "Tom's Mic" }
 
     private fun unique(f: File): File {

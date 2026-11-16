@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -117,22 +116,42 @@ fun MoreScreen(act: MainActivity) {
             Row(Modifier.fillMaxWidth().clickable { dialog.value = "bodyFont" }.padding(vertical = 8.dp)) { Body(t("Text font", "Font chữ thường"), bold = true, modifier = Modifier.weight(1f)); Label(AppFonts.name(Prefs.bodyFont.value)) }
             Btn("+ " + t("Add Font From Phone (.ttf / .otf)", "Thêm Font Từ Điện Thoại (.ttf / .otf)"), Modifier.fillMaxWidth(), filled = false) { fontPick.launch(arrayOf("*/*")) }
             Label(t("The TOM'S MIC name always keeps its own lettering.", "Chữ TOM'S MIC luôn giữ kiểu chữ gốc."))
-            SwitchRow(t("Splash screen", "Màn hình chào"), on = Prefs.splashOn.value) { Prefs.splashOn.value = it }
             SwitchRow(t("Light vibration on taps", "Rung nhẹ khi bấm"), on = Prefs.haptics.value) { Prefs.haptics.value = it }
+            SwitchRow(t("Press effect on buttons", "Hiệu ứng khi bấm nút"), t("Buttons, chips and cards sink a little with a ripple", "Nút, chip và thẻ lún nhẹ + gợn sóng"), Prefs.pressFx.value) { Prefs.pressFx.value = it }
+        }
+
+        Section(t("Opening Effect", "Hiệu Ứng Mở App")) {
+            SwitchRow(t("Splash screen", "Màn hình chào"), t("No sound", "Không có tiếng"), Prefs.splashOn.value) { Prefs.splashOn.value = it }
+            if (Prefs.splashOn.value) {
+                Label(t("Effect", "Hiệu ứng"))
+                ChipRow { for (k in SplashFx.keys) Chip(SplashFx.name(k), Prefs.splashStyle.value == k) { Prefs.splashStyle.value = k } }
+                Label(t("Speed", "Tốc độ"))
+                ChipRow { Chip(t("Fast", "Nhanh"), Prefs.splashSpeed.value == "fast") { Prefs.splashSpeed.value = "fast" }; Chip(t("Normal", "Vừa"), Prefs.splashSpeed.value == "normal") { Prefs.splashSpeed.value = "normal" } }
+                SwitchRow(t("Vibrate when the logo appears", "Rung khi logo hiện ra"), on = Prefs.splashHaptic.value) { Prefs.splashHaptic.value = it }
+                Btn("▶ " + t("Preview", "Xem Thử"), Modifier.fillMaxWidth(), filled = false) { act.showSplash.value = true }
+                Label(t("Opening from the widget, the Quick Settings tile or a shortcut goes straight to Record.", "Mở từ widget, ô Quick Settings hay lối tắt thì vào thẳng trang Thâu."))
+            }
+        }
+
+        Section(t("Bottom Bar Effects", "Hiệu Ứng Thanh Điều Hướng")) {
+            Label(t("Pick one or more (they combine)", "Chọn một hay nhiều kiểu (kết hợp được)"))
+            for (k in NavFx.keys) SwitchRow(NavFx.name(k), on = NavFx.on(k)) { NavFx.toggle(k) }
+            Label(t("Speed", "Tốc độ"))
+            ChipRow { Chip(t("Fast", "Nhanh"), Prefs.navFxSpeed.value == "fast") { Prefs.navFxSpeed.value = "fast" }; Chip(t("Normal", "Vừa"), Prefs.navFxSpeed.value == "normal") { Prefs.navFxSpeed.value = "normal" } }
+            SwitchRow(t("Vibrate on tap", "Rung khi bấm"), on = Prefs.navFxHaptic.value) { Prefs.navFxHaptic.value = it }
         }
 
         Section(t("Recording Wave", "Sóng Thâu")) {
             Row(Modifier.fillMaxWidth().clickable { dialog.value = "wave" }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Body(t("Wave style", "Kiểu sóng"), bold = true); Label(WaveStyles.name(Prefs.waveStyle.value)) }
-                Box(Modifier.width(120.dp).height(40.dp).clip(RoundedCornerShape(8.dp)).background(NAVY)) {
-                    LiveWave(Modifier.fillMaxSize(), FloatArray(24) { 0.5f + 0.4f * kotlin.math.sin(it * 0.7f) })
+                Box(Modifier.width(140.dp).height(48.dp).clip(RoundedCornerShape(8.dp)).background(NAVY)) {
+                    LiveWave(Modifier.fillMaxSize(), FloatArray(24) { 0.5f + 0.4f * kotlin.math.sin(it * 0.7f) }, demo = true)
                 }
             }
             Label(t("Colours", "Màu"))
             ChipRow { for (k in WaveStyles.colourKeys) Chip(WaveStyles.colourName(k), Prefs.waveColour.value == k) { Prefs.waveColour.value = k } }
             SwitchRow(t("Battery saver (wave moves slower)", "Tiết Kiệm Pin (sóng chạy chậm hơn)"), t("The wave is never drawn while the screen is off", "Tắt màn hình thì không vẽ sóng"), Prefs.waveSaver.value) { Prefs.waveSaver.value = it }
             SwitchRow(t("Wave strip at the top", "Dải sóng trên cùng"), on = Prefs.waveStrip.value) { Prefs.waveStrip.value = it }
-            SwitchRow(t("Wave on the bottom bar", "Sóng ở thanh điều hướng"), on = Prefs.waveNav.value) { Prefs.waveNav.value = it }
             SwitchRow(t("Record button blinks while recording", "Nút ● nhấp nháy khi đang thâu"), on = Prefs.blink.value) { Prefs.blink.value = it }
             SwitchRow(t("Lock screen card", "Thẻ trên màn hình khoá"), t("Shows the wave and ⚑ ❚❚ ■ when the screen locks while recording", "Hiện sóng và nút ⚑ ❚❚ ■ khi khoá màn hình lúc đang thâu"), Prefs.lockCard.value) { on ->
                 Prefs.lockCard.value = on
@@ -145,10 +164,15 @@ fun MoreScreen(act: MainActivity) {
 
         Section(t("Recording", "Thâu Âm")) {
             Label(t("Format", "Định dạng"))
-            ChipRow { for ((k, v) in listOf("wav" to "WAV", "flac" to "FLAC", "m4a" to "M4A (AAC)", "ogg" to "OGG Opus", "amr" to "AMR (3GP)")) Chip(v, Prefs.format.value == k) { Prefs.format.value = k } }
+            ChipRow { for ((k, v) in FORMATS) Chip(v, Prefs.format.value == k) { Prefs.format.value = k } }
             if (Prefs.format.value == "ogg" && Build.VERSION.SDK_INT < 29) Label(t("OGG Opus needs Android 10 — this phone will save M4A.", "OGG Opus cần Android 10 — máy này sẽ lưu M4A."))
             if (Prefs.format.value == "amr" && Build.VERSION.SDK_INT < 26) Label(t("AMR needs Android 8 — this phone will save M4A.", "AMR cần Android 8 — máy này sẽ lưu M4A."))
-            Label(t("MP3 is not in 0.9.0-beta yet.", "MP3 chưa có trong bản 0.9.0-beta."))
+            if (Prefs.format.value == "mp3") {
+                Label(t("MP3 quality", "Chất lượng MP3"))
+                ChipRow { for (b in listOf(128, 192, 256, 320)) Chip("$b kbps", Prefs.mp3Bitrate.value == b) { Prefs.mp3Bitrate.value = b } }
+                if (Prefs.sampleRate.value > 48000) Label(t("MP3 goes up to 48 kHz — 96 kHz recordings are saved at 48 kHz.", "MP3 chỉ tới 48 kHz — thâu 96 kHz sẽ lưu thành 48 kHz."))
+                if (!com.tomstechsolutions.mic.audio.Mp3Lib.available) Label(t("MP3 is missing in this build — M4A will be saved.", "Bản này thiếu MP3 — sẽ lưu M4A."), Color(0xFFC62828))
+            }
             Label(t("Sample rate", "Tần số lấy mẫu"))
             ChipRow { for (r in listOf(44100, 48000, 96000)) Chip("${r / 1000.0} kHz", Prefs.sampleRate.value == r) { Prefs.sampleRate.value = r } }
             Label(t("Channels", "Số kênh"))
@@ -175,6 +199,14 @@ fun MoreScreen(act: MainActivity) {
             Label(t("Volume keys while recording", "Phím âm lượng khi đang thâu"))
             ChipRow { for ((k, v) in listOf("mark" to t("Mark", "Đánh Dấu"), "pause" to t("Pause", "Tạm Dừng"), "off" to t("Normal", "Bình Thường"))) Chip(v, Prefs.volKey.value == k) { Prefs.volKey.value = k } }
             Label(t("Volume keys work while Tom's Mic is on screen.", "Phím âm lượng dùng được khi đang mở Tom's Mic."))
+            Divider()
+            SliderRow(t("Mic sensitivity (gain)", "Độ nhạy micro"), Prefs.gainDb.value, -12f..24f, 35, (if (Prefs.gainDb.value > 0) "+" else "") + "%.0f dB".format(Prefs.gainDb.value)) { Prefs.gainDb.value = Math.round(it).toFloat() }
+            SwitchRow(t("Limiter (stops loud sounds from breaking up)", "Bộ chặn chống vỡ tiếng"), t("Gently holds peaks under 0 dB", "Ghìm nhẹ tiếng quá to dưới 0 dB"), Prefs.limiter.value) { Prefs.limiter.value = it }
+            SwitchRow(t("Warn when too loud", "Cảnh báo tiếng quá to"), t("dB turns red and the phone vibrates", "Số dB hiện đỏ và máy rung"), Prefs.clipWarn.value) { Prefs.clipWarn.value = it }
+            SwitchRow(t("Safety track −6 dB", "Bản Dự Phòng −6 dB"), t("Records a second, quieter copy at the same time — if the main one is too loud, use this one", "Thâu thêm một bản nhỏ hơn cùng lúc — bản chính bị vỡ tiếng thì dùng bản này"), Prefs.safetyTrack.value) { Prefs.safetyTrack.value = it }
+            SwitchRow(t("Headset / Bluetooth button", "Nút tai nghe / Bluetooth"), t("1 press = Mark · 2 presses = Pause · hold = Stop", "Bấm 1 lần = Đánh Dấu · 2 lần = Tạm Dừng · giữ = Dừng"), Prefs.headsetCtrl.value) { Prefs.headsetCtrl.value = it }
+            SwitchRow(t("Low battery / storage warning", "Báo pin yếu / bộ nhớ gần đầy"), t("Below 15% battery or 500 MB free; stops and saves by itself under 100 MB", "Pin dưới 15% hay còn dưới 500 MB; còn dưới 100 MB thì tự dừng và lưu"), Prefs.lowWarn.value) { Prefs.lowWarn.value = it }
+            Btn("🎙 " + t("Microphone names", "Tên micro"), Modifier.fillMaxWidth(), filled = false) { dialog.value = "mics" }
             Row { Body(t("Channel names", "Tên kênh"), bold = true) }
             Row {
                 OutlinedTextField(Prefs.ch1Name.value, { Prefs.ch1Name.value = it }, label = { Text(t("Channel 1", "Kênh 1")) }, singleLine = true, modifier = Modifier.weight(1f))
@@ -210,7 +242,7 @@ fun MoreScreen(act: MainActivity) {
             Body(t("Tom's Own Words", "Từ Riêng Của Tom"), bold = true)
             Label(t("Words to spell right (one per line). ${Vocab.starter.size} camera / alarm / suburb words are already in.", "Các từ cần viết đúng (mỗi dòng một từ). Đã có sẵn ${Vocab.starter.size} từ về camera, alarm, suburb."))
             OutlinedTextField(Prefs.vocab.value, { Prefs.vocab.value = it }, modifier = Modifier.fillMaxWidth().height(110.dp))
-            Label(t("Summary (Experimental): not in 0.9.0-beta yet.", "Tóm Tắt (Thử Nghiệm): chưa có trong bản 0.9.0-beta."))
+            Label(t("Summary (Experimental): not in this version yet.", "Tóm Tắt (Thử Nghiệm): chưa có trong bản này."))
         }
 
         Section(t("Backup / Restore", "Sao Lưu / Khôi Phục")) {
@@ -245,6 +277,7 @@ fun MoreScreen(act: MainActivity) {
         "lang2" -> PickDialog(t("Second language", "Tiếng thứ hai"), listOf("" to t("Off", "Tắt")) + Langs.list.drop(1).map { it.first to t(it.second.first, it.second.second) }, Prefs.sttLang2.value, { Prefs.sttLang2.value = it }) { dialog.value = "" }
         "tr" -> PickDialog(t("Translate to", "Dịch sang"), Translate.languages().map { it to Translate.name(it, Prefs.lang.value == "vi") }, Prefs.translateTo.value, { Prefs.translateTo.value = it }) { dialog.value = "" }
         "wave" -> WavePicker { dialog.value = "" }
+        "mics" -> MicNamesDialog { dialog.value = "" }
     }
 }
 
@@ -265,18 +298,43 @@ private fun ThemeChip(m: MTheme) {
 
 @Composable
 private fun WavePicker(onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Close", "Đóng")) } },
-        title = { Text(t("Wave style (same as Tom's Jukebox)", "Kiểu sóng (giống Tom's Jukebox)")) },
+    TDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Close", "Đóng")) } },
+        title = { Text(t("Wave style", "Kiểu sóng")) },
         text = {
-            LazyColumn(Modifier.height(420.dp)) {
-                items(WaveStyles.usable) { i ->
-                    Row(Modifier.fillMaxWidth().clickable { Prefs.waveStyle.value = i; onDismiss() }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.width(96.dp).height(36.dp).clip(RoundedCornerShape(6.dp)).background(NAVY)) {
-                            LiveWave(Modifier.fillMaxSize(), FloatArray(24) { k -> 0.45f + 0.4f * kotlin.math.sin(k * 0.6f + i) }, style = i)
+            Column {
+                ChipRow { for (g in WaveStyles.groups) Chip(WaveStyles.groupName(g), Prefs.waveFilter.value == g) { Prefs.waveFilter.value = g } }
+                ChipRow { for (k in WaveStyles.colourKeys) Chip(WaveStyles.colourName(k), Prefs.waveColour.value == k) { Prefs.waveColour.value = k } }
+                val list = WaveStyles.usable.filter { WaveStyles.inGroup(it, Prefs.waveFilter.value) }
+                LazyColumn(Modifier.height(400.dp)) {
+                    items(list) { i ->
+                        Row(Modifier.fillMaxWidth().tap { Prefs.waveStyle.value = i; onDismiss() }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.width(110.dp).height(44.dp).clip(RoundedCornerShape(6.dp)).background(NAVY)) {
+                                LiveWave(Modifier.fillMaxSize(), FloatArray(24) { k -> 0.45f + 0.4f * kotlin.math.sin(k * 0.6f + i) }, style = i, demo = true)
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text((if (Prefs.waveStyle.value == i) "✓ " else "") + WaveStyles.name(i), color = th.text, fontSize = 13.sp)
                         }
-                        Spacer(Modifier.width(10.dp))
-                        Text((if (Prefs.waveStyle.value == i) "✓ " else "") + WaveStyles.name(i), color = th.text, fontSize = 13.sp)
                     }
+                }
+            }
+        })
+}
+
+@Composable
+private fun MicNamesDialog(onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    val list = remember { com.tomstechsolutions.mic.audio.AudioDevices.inputs(ctx) }
+    TDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Done", "Xong")) } },
+        title = { Text(t("Microphone names", "Tên micro")) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Label(t("Give each microphone a name you like. Leave empty to use the easy name.", "Đặt tên micro theo ý Tom. Để trống thì dùng tên dễ hiểu có sẵn."))
+                for (d in list) {
+                    val raw = com.tomstechsolutions.mic.audio.AudioDevices.rawName(d)
+                    val txt = remember(raw) { mutableStateOf(com.tomstechsolutions.mic.audio.AudioDevices.custom(raw)) }
+                    Spacer(Modifier.height(6.dp))
+                    Label(com.tomstechsolutions.mic.audio.AudioDevices.friendly(d) + " · " + raw)
+                    OutlinedTextField(txt.value, { txt.value = it; com.tomstechsolutions.mic.audio.AudioDevices.setCustom(raw, it) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
             }
         })
@@ -316,6 +374,8 @@ private fun About() {
             Spacer(Modifier.height(8.dp))
             Label(t("Speech to text: whisper.cpp (MIT) with OpenAI Whisper models (MIT). Translation: Google ML Kit (on the phone).",
                 "Chuyển chữ: whisper.cpp (MIT) với mô hình OpenAI Whisper (MIT). Dịch: Google ML Kit (chạy trên máy)."))
+            Label(t("MP3: LAME (LGPL), used as a separate library — source: github.com/lameproject/lame (lame.sourceforge.io).",
+                "MP3: LAME (LGPL), dùng dạng thư viện riêng — mã nguồn: github.com/lameproject/lame (lame.sourceforge.io)."))
             Label(t("Fonts: Saigon 1985 set by Thái Hiệu / Fontzin (free fonts).", "Font chữ: bộ Saigon 1985 của Thái Hiệu / Fontzin (font miễn phí)."))
             Label(t("DJI is a trademark of SZ DJI Technology Co., Ltd. Samsung is a trademark of Samsung Electronics Co., Ltd. Tom's Mic is not made by them.",
                 "DJI là nhãn hiệu của SZ DJI Technology Co., Ltd. Samsung là nhãn hiệu của Samsung Electronics Co., Ltd. Tom's Mic không do các hãng này làm."))

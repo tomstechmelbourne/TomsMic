@@ -1,3 +1,4 @@
 -keep class com.tomstechsolutions.mic.stt.WhisperLib { *; }
 -keepclasseswithmembernames class * { native <methods>; }
 -dontwarn com.google.**
+-keep class com.tomstechsolutions.mic.audio.Mp3Lib { *; }

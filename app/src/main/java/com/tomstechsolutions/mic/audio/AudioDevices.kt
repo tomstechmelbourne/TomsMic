@@ -29,17 +29,45 @@ object AudioDevices {
 
     fun isExternal(d: AudioDeviceInfo) = d.type != AudioDeviceInfo.TYPE_BUILTIN_MIC
 
-    fun name(d: AudioDeviceInfo?): String {
-        if (d == null) return t("Phone Microphone", "Micro Của Máy")
+    /** The name Android gives (e.g. "USB-Audio - Wireless Mic Rx"). */
+    fun rawName(d: AudioDeviceInfo?): String = d?.productName?.toString()?.trim().orEmpty().ifEmpty { if (d == null || d.type == AudioDeviceInfo.TYPE_BUILTIN_MIC) "builtin" else "type${d.type}" }
+
+    /** Tom's own names: "raw \t name" lines. */
+    fun custom(raw: String): String = com.tomstechsolutions.mic.Prefs.micNames.value.lines().firstOrNull { it.substringBefore('\t') == raw }?.substringAfter('\t', "").orEmpty()
+    fun setCustom(raw: String, name: String) {
+        val lines = com.tomstechsolutions.mic.Prefs.micNames.value.lines().filter { it.isNotBlank() && it.substringBefore('\t') != raw }.toMutableList()
+        if (name.isNotBlank()) lines += raw + "\t" + name.trim()
+        com.tomstechsolutions.mic.Prefs.micNames.value = lines.joinToString("\n")
+    }
+
+    /** Easy names for well-known microphones. */
+    fun friendly(d: AudioDeviceInfo?): String {
+        if (d == null || d.type == AudioDeviceInfo.TYPE_BUILTIN_MIC) return t("Phone Microphone", "Micro Của Máy")
         val pn = d.productName?.toString()?.trim().orEmpty()
+        val low = pn.lowercase()
+        val usb = isUsb(d); val bt = isBluetooth(d)
+        val how = when { usb -> t(" (USB-C Receiver)", " (Bộ Thu USB-C)"); bt -> " (Bluetooth)"; else -> "" }
         return when {
-            d.type == AudioDeviceInfo.TYPE_BUILTIN_MIC -> t("Phone Microphone", "Micro Của Máy")
-            isUsb(d) -> if (pn.isNotEmpty()) pn else t("USB Microphone", "Micro USB")
-            isBluetooth(d) -> (if (pn.isNotEmpty()) pn else "Bluetooth")
+            low.contains("dji") || low.contains("wireless mic rx") || low.contains("mic mini") -> "DJI Mic$how"
+            low.contains("rode") || low.contains("røde") -> "RØDE" + (if (low.contains("wireless")) " Wireless" else "") + how
+            low.contains("hollyland") || low.contains("lark") -> "Hollyland Lark$how"
+            low.contains("boya") -> "BOYA$how"
+            low.contains("shure") -> "Shure" + if (usb) " (USB)" else how
+            low.contains("zoom") -> "Zoom" + if (usb) " (USB)" else how
+            low.contains("saramonic") -> "Saramonic$how"
+            low.contains("sennheiser") -> "Sennheiser$how"
+            low.contains("blue") && usb -> "Blue Yeti / Snowball (USB)"
+            low.contains("samsung") && low.contains("buds") -> "Galaxy Buds (Bluetooth)"
+            low.contains("airpods") -> "AirPods (Bluetooth)"
+            low.contains("pixel buds") -> "Pixel Buds (Bluetooth)"
+            usb -> if (pn.isNotEmpty() && !low.startsWith("usb-audio")) pn else t("USB Microphone", "Micro USB")
+            bt -> if (pn.isNotEmpty()) "$pn (Bluetooth)" else "Bluetooth"
             d.type == AudioDeviceInfo.TYPE_WIRED_HEADSET -> t("Wired Headset", "Tai Nghe Có Dây")
-            else -> if (pn.isNotEmpty()) pn else t("Microphone", "Micro")
+            else -> pn.ifEmpty { t("Microphone", "Micro") }
         }
     }
+
+    fun name(d: AudioDeviceInfo?): String = custom(rawName(d)).ifEmpty { friendly(d) }
 
     fun tag(d: AudioDeviceInfo?): String = when {
         d == null || d.type == AudioDeviceInfo.TYPE_BUILTIN_MIC -> ""
@@ -51,5 +79,5 @@ object AudioDevices {
 
     fun maxChannels(d: AudioDeviceInfo?): Int = d?.channelCounts?.maxOrNull()?.coerceAtLeast(1) ?: 2
 
-    fun isDji(d: AudioDeviceInfo?) = d?.productName?.toString()?.contains("DJI", true) == true
+    fun isDji(d: AudioDeviceInfo?) = d?.productName?.toString()?.let { it.contains("DJI", true) || it.contains("Wireless Mic Rx", true) } == true
 }

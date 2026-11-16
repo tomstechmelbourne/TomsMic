@@ -40,7 +40,9 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        showSplash.value = Prefs.splashOn.value && savedInstanceState == null
+        // opened from the widget, the Quick Settings tile or a shortcut: straight to Thâu, no splash
+        val direct = intent?.action in setOf(ACT_RECORD, ACT_NOTE, ACT_LAST, ACT_LIST, MediaStore.Audio.Media.RECORD_SOUND_ACTION)
+        showSplash.value = Prefs.splashOn.value && savedInstanceState == null && !direct
         setContent { AppRoot(this) }
         if (savedInstanceState == null) handle(intent)
         Backup.schedule(this)

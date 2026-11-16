@@ -166,6 +166,8 @@ object Codecs {
         return when (format) {
             "wav" -> { toWav(wav, out, bits); "wav" }
             "flac" -> { toFlac(wav, out, if (bits >= 24) 24 else 16, progress); "flac" }
+            "mp3" -> if (Mp3Lib.available) { Mp3Lib.fromWav(wav, out, com.tomstechsolutions.mic.Prefs.mp3Bitrate.value, progress); "mp3" }
+                     else { toAac(wav, out, aacBitrate, progress); "m4a" }
             "ogg" -> if (Build.VERSION.SDK_INT >= 29) { toCodec(wav, out, "audio/opus", 48000, null, 128_000, MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG, progress); "ogg" }
                      else { toAac(wav, out, aacBitrate, progress); "m4a" }
             "amr" -> if (Build.VERSION.SDK_INT >= 26) { toCodec(wav, out, MediaFormat.MIMETYPE_AUDIO_AMR_WB, 16000, 1, 23_850, MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, progress); "amr" }

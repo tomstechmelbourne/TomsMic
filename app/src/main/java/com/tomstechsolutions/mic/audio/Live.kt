@@ -30,6 +30,13 @@ object Live {
     val callActive = mutableStateOf(false)
     val group = mutableStateOf("interview")
     val title = mutableStateOf("")
+    val clip = mutableLongStateOf(0L)          // last time the sound was too loud
+    val tuner = mutableStateOf(false)
+    val pitchHz = mutableFloatStateOf(0f)
+    val beat = mutableIntStateOf(-1)
+    val overdubUri = mutableStateOf("")       // Thâu Chồng: the backing track
+    val overdubName = mutableStateOf("")
+    val overdubLatency = mutableIntStateOf(0)
 
     val busy get() = state.value == RecState.RECORDING || state.value == RecState.PAUSED || state.value == RecState.COUNTDOWN
     val recording get() = state.value == RecState.RECORDING || state.value == RecState.PAUSED

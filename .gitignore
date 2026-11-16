@@ -8,3 +8,4 @@ app/src/main/cpp/whisper.cpp/
 app/.cxx/
 app/tomsmic.keystore
 app/signing.properties
+app/src/main/cpp/lame/

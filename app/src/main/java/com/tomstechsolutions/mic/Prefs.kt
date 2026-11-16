@@ -41,10 +41,17 @@ object Prefs {
     val haptics = p("haptics", true)
     val splashOn = p("splash_on", true)
     val waveStyle = p("wave_style", 70)        // Sóng Lụa Đa Sắc
-    val waveColour = p("wave_colour", "rec")   // rec (Đỏ – Cam) / brand / rainbow / ocean / sunset
+    val waveColour = p("wave_colour", "rec")   // rec (Đỏ – Cam) / brand / rainbow / ocean / sunset / native (Màu Gốc Của Kiểu Sóng)
+    val waveFilter = p("wave_filter", "all")   // nhóm lọc trong bảng Kiểu Sóng
+    val splashStyle = p("splash_style", "bloom")   // bloom / wake / morph / random / mic / wave
+    val splashSpeed = p("splash_speed", "normal")  // fast / normal
+    val splashHaptic = p("splash_haptic", true)
+    val navFx = p("nav_fx", "glow")            // các hiệu ứng thanh điều hướng, nối bằng dấu phẩy
+    val navFxSpeed = p("nav_fx_speed", "normal")
+    val navFxHaptic = p("nav_fx_haptic", true)
+    val pressFx = p("press_fx", true)          // lún nhẹ + gợn sóng khi bấm nút
     val waveSaver = p("wave_saver", false)     // Tiết Kiệm Pin: vẽ chậm hơn
     val waveStrip = p("wave_strip", true)      // dải sóng trên cùng
-    val waveNav = p("wave_nav", true)          // sóng ở thanh điều hướng
     val lockCard = p("lock_card", false)       // thẻ trên màn hình khoá (cần quyền hiện trên app khác)
 
     // recording
@@ -53,6 +60,18 @@ object Prefs {
     val channels = p("channels", 2)
     val bits = p("bits", 24)                   // 16 / 24 / 32 (32 = 32-bit float, chỉ WAV)
     val aacBitrate = p("aac_bitrate", 192000)
+    val mp3Bitrate = p("mp3_bitrate", 192)     // 128 / 192 / 256 / 320 kbps
+    val gainDb = p("gain_db", 0f)              // độ nhạy -12…+24 dB
+    val limiter = p("limiter", true)           // bộ chặn chống vỡ tiếng
+    val clipWarn = p("clip_warn", true)        // cảnh báo tiếng quá to (rung)
+    val safetyTrack = p("safety_track", false) // Bản Dự Phòng −6 dB
+    val headsetCtrl = p("headset_ctrl", true)  // nút tai nghe / Bluetooth
+    val lowWarn = p("low_warn", true)          // báo pin yếu / bộ nhớ gần đầy
+    val micNames = p("mic_names", "")          // tên micro tự đặt: tên gốc \t tên mới, mỗi dòng một micro
+    val metronome = p("metronome", false)
+    val bpm = p("bpm", 100)
+    val beatsPerBar = p("beats_bar", 4)
+    val overdubMix = p("overdub_mix", 0.7f)    // mức nhạc nền khi trộn
     val split = p("split", true)               // tách 2 kênh thành 2 file
     val preBuffer = p("pre_buffer", true)      // giữ 10 giây trước
     val countdown = p("countdown", false)      // đếm ngược 3-2-1

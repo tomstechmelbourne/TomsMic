@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -79,6 +78,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import com.tomstechsolutions.mic.audio.PostFx
+import com.tomstechsolutions.mic.audio.Audiogram
+import com.tomstechsolutions.mic.data.Todo
+import com.tomstechsolutions.mic.stt.Todos
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @Composable
 fun DetailScreen(act: MainActivity, id: String) {
@@ -104,7 +108,17 @@ fun DetailScreen(act: MainActivity, id: String) {
         player.addListener(l)
         onDispose { player.removeListener(l); boost.value?.release(); player.release() }
     }
-    LaunchedEffect(id) { while (true) { pos.longValue = player.currentPosition; delay(200) } }
+    val loopA = remember(id) { mutableLongStateOf(-1L) }
+    val loopB = remember(id) { mutableLongStateOf(-1L) }
+    val loopOn = remember(id) { mutableStateOf(false) }
+    LaunchedEffect(id) {
+        while (true) {
+            pos.longValue = player.currentPosition
+            // Lặp Đoạn A–B
+            if (loopOn.value && loopA.longValue >= 0 && loopB.longValue > loopA.longValue && player.currentPosition >= loopB.longValue) player.seekTo(loopA.longValue)
+            delay(if (loopOn.value) 40 else 200)
+        }
+    }
     LaunchedEffect(Prefs.boost.value, playing.value) {
         if (Prefs.boost.value && boost.value == null && player.audioSessionId != 0) try {
             boost.value = LoudnessEnhancer(player.audioSessionId).apply { setTargetGain(1200); enabled = true }
@@ -133,7 +147,10 @@ fun DetailScreen(act: MainActivity, id: String) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp)) {
         Text("‹ " + t("Recordings", "Bản Thâu"), color = th.accent, fontSize = 13.sp, modifier = Modifier.clickable { act.openRec.value = "" }.padding(vertical = 4.dp))
-        Text(r.title, color = th.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = AppFonts.family(Prefs.titleFont.value), modifier = Modifier.clickable { dialog.value = "rename" })
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(r.title, color = th.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = AppFonts.family(Prefs.titleFont.value), modifier = Modifier.weight(1f).clickable { dialog.value = "rename" })
+            Text(if (r.fav) "★" else "☆", color = if (r.fav) ORANGE else th.muted, fontSize = 28.sp, modifier = Modifier.tap(sink = 0.8f) { Store.update(r.id) { it.fav = !it.fav } }.padding(horizontal = 8.dp))
+        }
         Label(listOf(durText(r.durationMs), formatName(r.format) + (if (r.sampleRate > 0) " ${r.sampleRate / 1000.0} kHz" else "") + (if (r.format in setOf("wav", "flac")) " ${r.bits}-bit" else ""),
             sizeText(r.size), r.device).filter { it.isNotBlank() }.joinToString(" · "))
         Spacer(Modifier.height(8.dp))
@@ -149,6 +166,16 @@ fun DetailScreen(act: MainActivity, id: String) {
                 Ctl("⏭") { r.marks.firstOrNull { it > player.currentPosition + 500 }?.let { player.seekTo(it) } ?: player.seekTo(dur) }
             }
             ChipRow { for (s in listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 2.5f, 3f)) Chip("${s}×".replace(".0×", "×"), Prefs.playSpeed.value == s) { Prefs.playSpeed.value = s; player.playbackParameters = PlaybackParameters(s) } }
+            // Lặp Đoạn A–B (tập hát, nghe lại một câu)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Label(t("Loop", "Lặp đoạn"))
+                Spacer(Modifier.width(8.dp))
+                Chip("A " + if (loopA.longValue >= 0) durText(loopA.longValue) else "", loopA.longValue >= 0) { loopA.longValue = player.currentPosition; if (loopB.longValue <= loopA.longValue) loopB.longValue = -1 }
+                Chip("B " + if (loopB.longValue >= 0) durText(loopB.longValue) else "", loopB.longValue >= 0) { if (player.currentPosition > loopA.longValue) { loopB.longValue = player.currentPosition; loopOn.value = true; player.seekTo(loopA.longValue.coerceAtLeast(0)) } }
+                Chip(if (loopOn.value) "⟲ " + t("On", "Đang lặp") else "⟲ " + t("Off", "Tắt"), loopOn.value) {
+                    if (loopOn.value) { loopOn.value = false; loopA.longValue = -1; loopB.longValue = -1 } else if (loopA.longValue >= 0 && loopB.longValue > loopA.longValue) loopOn.value = true
+                }
+            }
             SwitchRow(t("Boost quiet voices", "Tăng Tiếng Giọng Nhỏ"), on = Prefs.boost.value) { Prefs.boost.value = it }
             SwitchRow(t("Skip silences while listening", "Bỏ Khoảng Lặng Khi Nghe"), on = Prefs.skipSilencePlay.value) { Prefs.skipSilencePlay.value = it; player.skipSilenceEnabled = it }
         }
@@ -164,6 +191,12 @@ fun DetailScreen(act: MainActivity, id: String) {
             Btn("⇪ " + t("Send / Drive", "Gửi / Drive"), Modifier.weight(1f), filled = false) { share(ctx, r) }
             Btn("♪ Jukebox", Modifier.weight(1f), filled = false) { openInJukebox(ctx, r) }
         }
+        Row(Modifier.fillMaxWidth()) {
+            Btn("🎚 " + t("Quick Polish", "Hậu Kỳ"), Modifier.weight(1f), filled = false) { dialog.value = "fx" }
+            Btn("✂⇪ " + t("Send Part", "Gửi Đoạn"), Modifier.weight(1f), filled = false) { dialog.value = "parts" }
+            Btn("🎬 " + t("Wave Video", "Video Sóng"), Modifier.weight(1f), filled = false) { dialog.value = "video" }
+        }
+        MemoCard(r)
         if (busy.value.isNotEmpty()) {
             Label(busy.value)
             LinearProgressIndicator(progress = { busyP.floatValue }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), color = th.accent)
@@ -177,7 +210,7 @@ fun DetailScreen(act: MainActivity, id: String) {
         "rename" -> RenameDialog(r) { dialog.value = "" }
         "marks" -> MarksDialog(r, { player.seekTo(it); dialog.value = "" }) { dialog.value = "" }
         "cut" -> CutDialog(r, dur, { a, b -> dialog.value = ""; runJob(t("Cutting…", "Đang cắt…")) { cut(ctx, r, a, b) { busyP.floatValue = it } } }) { dialog.value = "" }
-        "convert" -> PickDialog(t("Save a copy as", "Lưu thêm một bản dạng"), listOf("wav" to "WAV", "flac" to "FLAC", "m4a" to "M4A (AAC)", "ogg" to "OGG Opus", "amr" to "AMR (3GP)"), "", { f ->
+        "convert" -> PickDialog(t("Save a copy as", "Lưu thêm một bản dạng"), FORMATS, "", { f ->
             runJob(t("Converting…", "Đang chuyển định dạng…")) { convert(ctx, r, f) { busyP.floatValue = it } }
         }) { dialog.value = "" }
         "export" -> ExportDialog(ctx, r) { dialog.value = "" }
@@ -189,6 +222,9 @@ fun DetailScreen(act: MainActivity, id: String) {
                 withContext(Dispatchers.Main) { Store.update(r.id) { x -> x.segs = copy.toMutableList(); x.trLang = lg } }
             }
         }) { dialog.value = "" }
+        "fx" -> PostFxDialog({ o -> dialog.value = ""; runJob(t("Polishing…", "Đang làm hậu kỳ…")) { polish(ctx, r, o) { busyP.floatValue = it } } }) { dialog.value = "" }
+        "parts" -> PartsDialog(r, dur, { a, b -> dialog.value = ""; runJob(t("Preparing the part…", "Đang chuẩn bị đoạn…")) { sendPart(ctx, r, a, b) { busyP.floatValue = it } } }) { dialog.value = "" }
+        "video" -> VideoDialog(r, dur, { a, b, o -> dialog.value = ""; runJob(t("Making the wave video… (about as long as the part)", "Đang làm video sóng… (lâu cỡ bằng độ dài đoạn)")) { video(ctx, r, a, b, o) { busyP.floatValue = it } } }) { dialog.value = "" }
         "edit" -> {}
     }
 }
@@ -262,13 +298,13 @@ private fun TextCard(act: MainActivity, r: Rec, player: ExoPlayer, dialog: Mutab
                     Btn("⤓ " + t("Export", "Xuất"), Modifier.weight(1f), filled = false) { dialog.value = "export" }
                     Btn("↻ " + t("Again", "Chuyển Lại"), Modifier.weight(1f), filled = false) { SttWork.enqueue(ctx, r.id, false) }
                 }
-                Label(t("Summary (Experimental) is not in 0.9.0-beta yet.", "Tóm Tắt (Thử Nghiệm) chưa có trong bản 0.9.0-beta."))
+                TodoBlock(r)
             }
         }
     }
     edit.value?.let { s ->
         val txt = remember(s) { mutableStateOf(s.text) }
-        AlertDialog(onDismissRequest = { edit.value = null },
+        TDialog(onDismissRequest = { edit.value = null },
             confirmButton = { TextButton(onClick = {
                 Store.update(r.id) { x -> x.segs.firstOrNull { it.t0 == s.t0 && it.speaker == s.speaker }?.text = txt.value }
                 if (r.pairId.isNotEmpty()) Store.update(r.pairId) { x -> x.segs.firstOrNull { it.t0 == s.t0 && it.speaker == s.speaker }?.text = txt.value }
@@ -282,7 +318,7 @@ private fun TextCard(act: MainActivity, r: Rec, player: ExoPlayer, dialog: Mutab
 
 @Composable
 private fun MarksDialog(r: Rec, onSeek: (Long) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Close", "Đóng")) } },
+    TDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Close", "Đóng")) } },
         title = { Text(t("Marks", "Các Dấu")) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -302,7 +338,7 @@ private fun MarksDialog(r: Rec, onSeek: (Long) -> Unit, onDismiss: () -> Unit) {
 private fun CutDialog(r: Rec, dur: Long, onCut: (Long, Long) -> Unit, onDismiss: () -> Unit) {
     val a = remember { mutableFloatStateOf(0f) }
     val b = remember { mutableFloatStateOf(1f) }
-    AlertDialog(onDismissRequest = onDismiss,
+    TDialog(onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = { if (b.floatValue > a.floatValue) onCut((a.floatValue * dur).toLong(), (b.floatValue * dur).toLong()) }) { Text(t("Save the part", "Lưu Đoạn Này")) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(t("Cancel", "Huỷ")) } },
         title = { Text(t("Cut", "Cắt Đoạn")) },
@@ -325,7 +361,7 @@ private fun CutDialog(r: Rec, dur: Long, onCut: (Long, Long) -> Unit, onDismiss:
 private fun ExportDialog(ctx: Context, r: Rec, onDismiss: () -> Unit) {
     val kind = remember { mutableStateOf("txt") }
     val which = remember { mutableStateOf("orig") }
-    AlertDialog(onDismissRequest = onDismiss,
+    TDialog(onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = {
             try {
                 val f = Export.write(ctx, r, kind.value, which.value)
@@ -351,7 +387,7 @@ private fun ExportDialog(ctx: Context, r: Rec, onDismiss: () -> Unit) {
 // ---------------- jobs ----------------
 private fun ext(f: String) = MediaSave.ext(f)
 
-private fun saveNew(ctx: Context, src: Rec, file: File, fmt: String, suffix: String, wav: File?) {
+fun saveNew(ctx: Context, src: Rec, file: File, fmt: String, suffix: String, wav: File?) {
     val title = src.title + " ($suffix)"
     val uri = MediaSave.save(ctx, file, src.group, title, fmt)
     val info = wav?.let { w -> WavReader(w.inputStream()).use { Triple(it.durationMs, it.sampleRate, it.channels) } }
@@ -369,7 +405,7 @@ private fun cut(ctx: Context, r: Rec, a: Long, b: Long, p: (Float) -> Unit) {
     }
     val wav = File(ctx.cacheDir, "cutw_${System.nanoTime()}.wav")
     Codecs.decodeToWav(ctx, u, wav, a, b) { p(it * 0.5f) }
-    val fmt = if (r.format in setOf("wav", "flac", "m4a", "ogg", "amr")) r.format else "m4a"
+    val fmt = if (r.format in setOf("wav", "flac", "m4a", "ogg", "amr", "mp3")) r.format else "m4a"
     val real = Codecs.encode(wav, fmt, out, r.bits.coerceIn(16, 32), Prefs.aacBitrate.value) { p(0.5f + it * 0.5f) }
     saveNew(ctx, r, out, real, t("Cut", "Cắt"), wav)
     wav.delete(); out.delete()
@@ -413,7 +449,7 @@ private fun denoise(ctx: Context, r: Rec, p: (Float) -> Unit) {
         }
         w.close()
     }
-    val fmt = if (r.format in setOf("wav", "flac", "m4a", "ogg", "amr")) r.format else "m4a"
+    val fmt = if (r.format in setOf("wav", "flac", "m4a", "ogg", "amr", "mp3")) r.format else "m4a"
     val out = File(ctx.cacheDir, "dno_${System.nanoTime()}.${ext(fmt)}")
     val real = Codecs.encode(clean, fmt, out, if (r.bits >= 24) 24 else 16, Prefs.aacBitrate.value) { p(0.8f + it * 0.2f) }
     saveNew(ctx, r, out, real, t("Noise Removed", "Đã Khử Ồn"), clean)
@@ -426,4 +462,173 @@ private fun openInJukebox(ctx: Context, r: Rec) {
     catch (_: Exception) {
         try { ctx.startActivity(Intent.createChooser(i, t("Open with", "Mở bằng"))) } catch (_: Exception) { Live.message.value = t("Tom's Jukebox is not installed.", "Máy chưa cài Tom's Jukebox.") }
     }
+}
+
+// ---------------- 0.9.1: ghi chú, việc cần làm, hậu kỳ, gửi đoạn, video sóng ----------------
+@Composable
+private fun MemoCard(r: Rec) {
+    val txt = remember(r.id) { mutableStateOf(r.memo) }
+    MCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Body("🗒 " + t("Note", "Ghi Chú"), bold = true, modifier = Modifier.weight(1f))
+            if (txt.value != r.memo) Text(t("Save", "Lưu"), color = th.accent, fontWeight = FontWeight.Bold, modifier = Modifier.tap { Store.update(r.id) { it.memo = txt.value.trim() } }.padding(6.dp))
+        }
+        OutlinedTextField(txt.value, { txt.value = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text(t("Address, customer, what to remember… (searchable)", "Địa chỉ, khách hàng, điều cần nhớ… (tìm được)"), color = th.muted, fontSize = 13.sp) },
+            minLines = 2)
+    }
+}
+
+@Composable
+private fun TodoBlock(r: Rec) {
+    val ctx = LocalContext.current
+    val add = remember { mutableStateOf("") }
+    Spacer(Modifier.height(10.dp))
+    Divider()
+    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Body("✅ " + t("Things To Do", "Việc Cần Làm"), bold = true, modifier = Modifier.weight(1f))
+        if (r.todos.isNotEmpty()) Text("⇪", color = th.accent, fontSize = 20.sp, modifier = Modifier.tap {
+            val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, Todos.asText(r.title, r.todos))
+            ctx.startActivity(Intent.createChooser(i, t("Send the list", "Gửi danh sách")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.padding(6.dp))
+    }
+    if (r.todos.isEmpty()) {
+        Label(t("Finds sentences like \"need to replace…\", \"remember to call…\" in the text.", "Tìm các câu như \"cần thay…\", \"nhớ gọi…\" trong phần chữ."))
+        Btn("✅ " + t("Find Things To Do", "Tìm Việc Cần Làm"), Modifier.fillMaxWidth(), filled = false) {
+            val found = Todos.find(r.segs)
+            if (found.isEmpty()) Live.message.value = t("No jobs found — you can add them by hand.", "Không thấy việc nào — Tom tự thêm được.")
+            Store.update(r.id) { it.todos = found }
+        }
+    }
+    for (d in r.todos.toList()) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (d.done) "☑" else "☐", color = if (d.done) OK_GREEN else th.text, fontSize = 22.sp, modifier = Modifier.tap(sink = 0.8f) { Store.update(r.id) { x -> x.todos.firstOrNull { it === d || it.text == d.text }?.let { it.done = !it.done } } }.padding(end = 8.dp))
+            Body(d.text, colour = if (d.done) th.muted else th.text, size = 14, modifier = Modifier.weight(1f))
+            Text("✕", color = th.muted, modifier = Modifier.tap { Store.update(r.id) { x -> x.todos.removeAll { it.text == d.text } } }.padding(6.dp))
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(add.value, { add.value = it }, singleLine = true, modifier = Modifier.weight(1f), placeholder = { Text(t("Add a job…", "Thêm việc…"), color = th.muted, fontSize = 13.sp) })
+        Text("+", color = th.accent, fontSize = 26.sp, modifier = Modifier.tap { if (add.value.isNotBlank()) { val v = add.value.trim(); Store.update(r.id) { it.todos.add(Todo(v)) }; add.value = "" } }.padding(10.dp))
+    }
+}
+
+@Composable
+private fun PostFxDialog(onGo: (PostFx.Opts) -> Unit, onDismiss: () -> Unit) {
+    val norm = remember { mutableStateOf(true) }
+    val voice = remember { mutableStateOf(true) }
+    val fade = remember { mutableStateOf(false) }
+    val hum = remember { mutableStateOf(true) }
+    TDialog(onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = { if (norm.value || voice.value || fade.value || hum.value) onGo(PostFx.Opts(norm.value, voice.value, fade.value, hum.value)) }) { Text(t("Make", "Làm")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("Cancel", "Huỷ")) } },
+        title = { Text(t("Quick Polish", "Hậu Kỳ Nhanh")) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                SwitchRow(t("Even out the volume", "Cân bằng âm lượng"), t("Brings the loudest part up to just under 0 dB", "Đưa chỗ to nhất lên sát 0 dB"), norm.value) { norm.value = it }
+                SwitchRow(t("Clearer voice", "Làm rõ giọng"), t("Quiet words come up, loud ones are held, a little more presence", "Câu nói nhỏ được nâng lên, câu to được ghìm lại, giọng rõ hơn"), voice.value) { voice.value = it }
+                SwitchRow(t("Fade in / fade out", "Fade vào / fade ra"), t("1.5 seconds at the start and the end", "1,5 giây ở đầu và cuối"), fade.value) { fade.value = it }
+                SwitchRow(t("Remove hum", "Lọc tiếng ù"), t("Air-con, fan, power hum (50/60 Hz) and rumble", "Máy lạnh, quạt, tiếng ù điện (50/60 Hz) và tiếng rung"), hum.value) { hum.value = it }
+                Label(t("The original is kept; the result is saved as a new recording.", "Bản gốc vẫn giữ; bản làm xong lưu thành bản mới."))
+            }
+        })
+}
+
+@Composable
+private fun PartsDialog(r: Rec, dur: Long, onSend: (Long, Long) -> Unit, onDismiss: () -> Unit) {
+    val parts = remember(r.marks.size, dur) { PostFx.parts(r, dur) }
+    TDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Close", "Đóng")) } },
+        title = { Text(t("Send a part", "Gửi Nhanh Một Đoạn")) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (r.marks.isEmpty()) Label(t("This recording has no ⚑ marks. Tap ⚑ while recording to split it into parts.", "Bản này chưa có dấu ⚑. Bấm ⚑ lúc đang thâu để chia đoạn."))
+                else Label(t("Parts between the ⚑ marks:", "Các đoạn giữa những dấu ⚑:"))
+                parts.forEachIndexed { i, (a, b) ->
+                    MenuItem("⇪ " + t("Part ", "Đoạn ") + "${i + 1} · ${durText(a)} → ${durText(b)} (${durText(b - a)})") { onSend(a, b) }
+                }
+            }
+        })
+}
+
+@Composable
+private fun VideoDialog(r: Rec, dur: Long, onGo: (Long, Long, Audiogram.Opts) -> Unit, onDismiss: () -> Unit) {
+    val parts = remember(r.marks.size, dur) { PostFx.parts(r, dur) }
+    val which = remember { mutableStateOf(-1) }       // -1 = whole recording
+    val vertical = remember { mutableStateOf(false) }
+    val subs = remember { mutableStateOf(r.segs.isNotEmpty()) }
+    val style = remember { mutableStateOf(Prefs.waveStyle.value) }
+    TDialog(onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = {
+            val (a, b) = if (which.value >= 0) parts[which.value] else 0L to dur
+            onGo(a, b, Audiogram.Opts(vertical.value, subs.value, style.value, waveColours(), r.title))
+        }) { Text(t("Make Video", "Làm Video")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("Cancel", "Huỷ")) } },
+        title = { Text(t("Wave Video (MP4)", "Video Sóng (MP4)")) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Label(t("A video with the moving wave and the words as subtitles — for Facebook, YouTube or to send to a customer.", "Video có sóng chạy theo tiếng và chữ phụ đề — đăng Facebook, YouTube hay gửi khách."))
+                Label(t("Which part", "Đoạn nào"))
+                ChipRow {
+                    Chip(t("Whole", "Cả bản") + " (${durText(dur)})", which.value == -1) { which.value = -1 }
+                    if (r.marks.isNotEmpty()) parts.forEachIndexed { i, (a, b) -> Chip(t("Part ", "Đoạn ") + "${i + 1} (${durText(b - a)})", which.value == i) { which.value = i } }
+                }
+                Label(t("Shape", "Khung hình"))
+                ChipRow { Chip(t("Square 1:1", "Vuông 1:1"), !vertical.value) { vertical.value = false }; Chip(t("Tall 9:16 (Reels, Shorts)", "Dọc 9:16 (Reels, Shorts)"), vertical.value) { vertical.value = true } }
+                SwitchRow(t("Subtitles from the text", "Phụ đề từ phần chữ"), if (r.segs.isEmpty()) t("Turn the recording into text first", "Cần chuyển chữ trước") else "", subs.value && r.segs.isNotEmpty()) { subs.value = it }
+                Label(t("Wave: ", "Kiểu sóng: ") + WaveStyles.name(style.value))
+                ChipRow { for (k in listOf(Prefs.waveStyle.value, 84, 85, 70, 96, 98, 94, 92).distinct()) Chip(WaveStyles.name(k), style.value == k) { style.value = k } }
+                Box(Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(8.dp)).background(NAVY)) {
+                    LiveWave(Modifier.fillMaxSize(), FloatArray(24) { 0.5f }, style = style.value, demo = true)
+                }
+                if (dur > 5 * 60_000 && which.value == -1) Label(t("Long recordings take a while — a part between ⚑ marks is quicker.", "Bản dài làm lâu — chọn một đoạn giữa dấu ⚑ thì nhanh hơn."), Color(0xFFB26A00))
+            }
+        })
+}
+
+private fun polish(ctx: Context, r: Rec, o: PostFx.Opts, p: (Float) -> Unit) {
+    val wav = File(ctx.cacheDir, "pf_${System.nanoTime()}.wav")
+    val done = File(ctx.cacheDir, "pfo_${System.nanoTime()}.wav")
+    try {
+        Codecs.decodeToWav(ctx, Uri.parse(r.uri), wav) { p(it * 0.25f) }
+        PostFx.process(wav, done, o) { p(0.25f + it * 0.6f) }
+        val fmt = if (r.format in setOf("wav", "flac", "m4a", "ogg", "amr", "mp3")) r.format else "m4a"
+        val out = File(ctx.cacheDir, "pfe_${System.nanoTime()}.${ext(fmt)}")
+        val real = Codecs.encode(done, fmt, out, if (r.bits >= 24) 24 else 16, Prefs.aacBitrate.value) { p(0.85f + it * 0.15f) }
+        saveNew(ctx, r, out, real, t("Polished", "Hậu Kỳ"), done)
+        out.delete()
+    } finally { wav.delete(); done.delete() }
+}
+
+private fun sendPart(ctx: Context, r: Rec, a: Long, b: Long, p: (Float) -> Unit) {
+    val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
+    val name = MediaSave.safe(r.title + " – " + durText(a).replace(':', '.') + "-" + durText(b).replace(':', '.'))
+    val fmt = if (r.format in setOf("m4a", "ogg", "amr", "mp3", "flac", "wav")) r.format else "m4a"
+    val out = File(dir, "$name.${ext(fmt)}")
+    val u = Uri.parse(r.uri)
+    if (!(fmt in setOf("m4a", "ogg", "amr") && Codecs.cutCopy(ctx, u, fmt, out, a, b))) {
+        val wav = File(ctx.cacheDir, "sp_${System.nanoTime()}.wav")
+        Codecs.decodeToWav(ctx, u, wav, a, b) { p(it * 0.5f) }
+        val real = Codecs.encode(wav, fmt, out, r.bits.coerceIn(16, 24), Prefs.aacBitrate.value) { p(0.5f + it * 0.5f) }
+        wav.delete()
+        if (real != fmt) { val o2 = File(dir, "$name.${ext(real)}"); out.renameTo(o2); return shareFile(ctx, o2, real) }
+    }
+    shareFile(ctx, out, fmt)
+}
+
+private fun shareFile(ctx: Context, f: File, fmt: String) {
+    val uri = FileProvider.getUriForFile(ctx, "com.tomstechsolutions.mic.files", f)
+    val i = Intent(Intent.ACTION_SEND).setType(if (fmt == "mp4") "video/mp4" else MediaSave.mime(fmt)).putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_SUBJECT, f.nameWithoutExtension)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    android.os.Handler(android.os.Looper.getMainLooper()).post {
+        try { ctx.startActivity(Intent.createChooser(i, t("Send to…", "Gửi tới…")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
+    }
+}
+
+private fun video(ctx: Context, r: Rec, a: Long, b: Long, o: Audiogram.Opts, p: (Float) -> Unit) {
+    val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
+    val out = File(dir, MediaSave.safe(r.title) + ".mp4")
+    Audiogram.make(ctx, r, a, b, o, out, p)
+    // keep a copy in Movies/Tom's Mic too
+    try { MediaSave.saveVideo(ctx, out) } catch (_: Exception) { }
+    android.os.Handler(android.os.Looper.getMainLooper()).post { Live.message.value = t("Video saved in Movies/Tom's Mic.", "Đã lưu video vào Movies/Tom's Mic.") }
+    shareFile(ctx, out, "mp4")
 }

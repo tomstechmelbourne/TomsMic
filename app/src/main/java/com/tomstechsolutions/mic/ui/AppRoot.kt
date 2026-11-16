@@ -25,6 +25,13 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,12 +73,17 @@ import kotlin.math.sin
 fun AppRoot(act: MainActivity) {
     val d = LocalDensity.current
     val theme = Themes.now()
+    val scheme = if (theme.light) lightColorScheme(primary = theme.accent, onPrimary = theme.onAccent, surface = theme.dialogBg, onSurface = theme.text,
+            surfaceContainerHigh = theme.dialogBg, onSurfaceVariant = theme.muted, background = theme.bgTop, onBackground = theme.text, outline = theme.muted)
+        else darkColorScheme(primary = theme.accent, onPrimary = theme.onAccent, surface = theme.dialogBg, onSurface = theme.text,
+            surfaceContainerHigh = theme.dialogBg, onSurfaceVariant = theme.muted, background = theme.bgBottom, onBackground = theme.text, outline = theme.muted)
+    MaterialTheme(colorScheme = scheme) {
     CompositionLocalProvider(LocalDensity provides Density(d.density, d.fontScale * Prefs.textScale.value)) {
         Box(Modifier.fillMaxSize().background(theme.bg)) {
             Column(Modifier.fillMaxSize()) {
                 TopBar(act)
                 if (Live.recording && Prefs.waveStrip.value) Strip(act)
-                Box(Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.displayCutout)) {
+                Box(Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))) {
                     Crossfade(act.tab.intValue, label = "tabs") { tab ->
                         when (tab) {
                             0 -> RecordScreen(act)
@@ -86,8 +98,9 @@ fun AppRoot(act: MainActivity) {
             Message()
             if (Live.state.value == RecState.COUNTDOWN && Live.countdown.intValue > 0) Countdown()
             if (act.pocket.value) PocketLock(act)
-            AnimatedVisibility(act.showSplash.value, enter = fadeIn(), exit = fadeOut()) { Splash(act) }
+            AnimatedVisibility(act.showSplash.value, enter = fadeIn(), exit = fadeOut(tween(350))) { Splash(act) }
         }
+    }
     }
     LaunchedEffect(act.tab.intValue) { if (act.tab.intValue == 0) act.arm() else act.disarm() }
     val lightTop = theme.top.luminance() > 0.5f
@@ -107,7 +120,7 @@ fun TopBar(act: MainActivity) {
     val big = Prefs.textScale.value >= 1.29f
     Row(Modifier.fillMaxWidth().background(th.top).statusBarsPadding().padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.app_logo), null, Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
+        Image(painterResource(R.drawable.app_logo), null, Modifier.size(46.dp).clip(CircleShape))
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             if (!big) Wordmark(20.sp) else Wordmark(17.sp, showMic = false)
@@ -123,9 +136,9 @@ fun TopBar(act: MainActivity) {
 
 @Composable
 private fun TopBtn(text: String, onClick: () -> Unit) {
-    Box(Modifier.padding(start = 6.dp).clip(RoundedCornerShape(9.dp)).background(if (th.light && th.top != NAVY) Color(0x140F2A38) else NAVY_L)
-        .clickable { onClick() }.padding(horizontal = 8.dp, vertical = 5.dp)) {
-        Text(text, color = if (th.light && th.top != NAVY) th.text else Color.White, fontSize = 12.sp, maxLines = 1)
+    Box(Modifier.padding(start = 7.dp).tap(sink = 0.88f) { onClick() }.clip(RoundedCornerShape(11.dp)).background(if (th.light && th.top != NAVY) Color(0x140F2A38) else NAVY_L)
+        .padding(horizontal = 11.dp, vertical = 7.dp)) {
+        Text(text, color = if (th.light && th.top != NAVY) th.text else Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -138,25 +151,6 @@ fun Strip(act: MainActivity) {
             Spacer(Modifier.width(6.dp))
             Text((if (Live.state.value == RecState.PAUSED) t("Paused", "Tạm Dừng") else t("Recording", "Đang Thâu")) + " · " + RecorderService.fmt(Live.elapsed.longValue),
                 color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-fun NavBar(act: MainActivity) {
-    val items = listOf("●" to t("Record", "Thâu"), "☰" to t("Recordings", "Bản Thâu"), "✆" to t("Calls", "Cuộc Gọi"), "⋯" to t("More", "Thêm"))
-    Box(Modifier.fillMaxWidth().background(th.nav)) {
-        if (Live.recording && Prefs.waveNav.value) LiveWave(Modifier.fillMaxWidth().height(18.dp).align(Alignment.TopCenter), Live.levels1.value, Live.state.value == RecState.PAUSED)
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 8.dp, bottom = 6.dp), horizontalArrangement = Arrangement.SpaceAround) {
-            items.forEachIndexed { i, (g, label) ->
-                val on = act.tab.intValue == i
-                Column(Modifier.weight(1f).clickable { act.tab.intValue = i; if (i != 1) act.openRec.value = "" }, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.clip(RoundedCornerShape(14.dp)).background(if (on) th.accent.copy(alpha = 0.16f) else Color.Transparent).padding(horizontal = 18.dp, vertical = 2.dp)) {
-                        Text(g, color = if (i == 0 && Live.recording) REC else if (on) th.accent else th.muted, fontSize = 20.sp)
-                    }
-                    Text(label, color = if (on) th.accent else th.muted, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
-                }
-            }
         }
     }
 }
@@ -192,27 +186,6 @@ fun PocketLock(act: MainActivity) {
             Spacer(Modifier.height(16.dp))
             Text(t("Swipe up to unlock", "Vuốt lên để mở khoá"), color = SPLASH_TEXT, fontSize = 14.sp)
         }
-    }
-}
-
-@Composable
-fun Splash(act: MainActivity) {
-    LaunchedEffect(Unit) { delay(1700); act.showSplash.value = false }
-    val clock by rememberClock()
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(NAVY, NAVY_D))).clickable { act.showSplash.value = false }) {
-        Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(painterResource(R.drawable.app_logo), null, Modifier.size(120.dp))
-            Spacer(Modifier.height(16.dp))
-            Wordmark(40.sp)
-            Text("Focus On One Thing And Do It Well", color = SPLASH_TEXT, fontSize = 14.sp)
-            Spacer(Modifier.height(10.dp))
-            Text(t("Recording · Speech To Text · Calls · DJI Microphones", "Thâu Âm · Chuyển Chữ · Cuộc Gọi · Micro DJI"), color = SPLASH_TEXT.copy(alpha = 0.85f), fontSize = 13.sp, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(36.dp))
-            ProductLine(13)
-            Text(BuildConfig.VERSION_NAME, color = SPLASH_TEXT.copy(alpha = 0.6f), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
-        }
-        val lv = FloatArray(24) { i -> 0.3f + 0.6f * abs(sin(clock * (1.1f + i * 0.13f) + i)) }
-        LiveWave(Modifier.fillMaxWidth().height(90.dp).align(Alignment.BottomCenter).navigationBarsPadding(), lv, style = 70)
     }
 }
 

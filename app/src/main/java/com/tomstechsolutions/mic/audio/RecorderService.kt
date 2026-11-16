@@ -22,6 +22,10 @@ import android.media.AudioRouting
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.NoiseSuppressor
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
+import android.view.KeyEvent
+import androidx.core.content.IntentCompat
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -84,6 +88,16 @@ class RecorderService : Service() {
     private var standby = false
     private var lockReceiverOn = false
     private var wantedDevice: AudioDeviceInfo? = null
+    @Volatile private var safetyW: WavWriter? = null
+    private var stopping = false
+    private var session: MediaSession? = null
+    private var lastClipWarn = 0L
+    private var limEnv = 1f
+    private var tickN = 0
+    private var warnedBattery = false
+    private var warnedStorage = false
+    private var odStart = -1L          // Thâu Chồng: frame where the music started
+    private var odUri = ""
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -104,6 +118,8 @@ class RecorderService : Service() {
         releaseWake()
         main.removeCallbacksAndMessages(null)
         if (Live.state.value != RecState.SAVING) Live.state.value = RecState.IDLE
+        sessionOff(); Metronome.stop(); Overdub.stop()
+        try { (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).cancel(NOTIF) } catch (_: Exception) { }
         RecWidget.updateAll(this); MicTile.refresh(this)
         super.onDestroy()
     }
@@ -112,6 +128,7 @@ class RecorderService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lastStartId = startId
+        stopping = false
         if (!goForeground()) { stopSelf(); return START_NOT_STICKY }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             Live.message.value = t("Microphone permission is needed.", "Cần cho phép dùng micro.")
@@ -134,6 +151,8 @@ class RecorderService : Service() {
             A_CALL_START -> callStart(intent.getStringExtra("number") ?: "")
             A_CALL_END -> callEnd()
             A_DEVICE -> changeDevice()
+            A_TUNER_ON -> { Live.tuner.value = true; arm(force = true) }
+            A_TUNER_OFF -> { Live.tuner.value = false; Live.pitchHz.floatValue = 0f; if (!Prefs.preBuffer.value) disarm() }
         }
         refreshNotification()
         return START_NOT_STICKY
@@ -157,8 +176,9 @@ class RecorderService : Service() {
     private fun releaseWake() { try { if (wake?.isHeld == true) wake?.release() } catch (_: Exception) { } }
 
     // ---------------- states ----------------
-    private fun arm() {
+    private fun arm(force: Boolean = false) {
         if (Live.busy || Live.state.value == RecState.SAVING) return
+        if (!force && !Prefs.preBuffer.value && !Live.tuner.value) { stopIfIdle(); return }
         armed = true
         ensureCapture(false)
         if (Live.state.value == RecState.IDLE || Live.state.value == RecState.STANDBY) Live.state.value = RecState.ARMED
@@ -196,13 +216,15 @@ class RecorderService : Service() {
         val f = File(cacheDir, "rec_${created}.wav")
         temp = f
         val w = WavWriter(f, c.sr, c.ch, bits)
+        val sw = if (Prefs.safetyTrack.value && !isCall) WavWriter(File(cacheDir, "rec_${created}_safety.wav"), c.sr, c.ch, bits) else null
         // Giữ 10 giây trước: write what the mic heard just before the tap
         if (armed && Prefs.preBuffer.value && !isCall && ringFill > 0) {
             synchronized(this) {
                 val start = (ringPos - ringFill + ring.size) % ring.size
                 val first = minOf(ringFill, ring.size - start)
-                w.write(ring.copyOfRange(start, start + first), first)
-                if (ringFill > first) w.write(ring.copyOfRange(0, ringFill - first), ringFill - first)
+                val a = ring.copyOfRange(start, start + first)
+                w.write(a, first); sw?.write(FloatArray(first) { a[it] * 0.5f }, first)
+                if (ringFill > first) { val b = ring.copyOfRange(0, ringFill - first); w.write(b, b.size); sw?.write(FloatArray(b.size) { b[it] * 0.5f }, b.size) }
                 ringFill = 0
             }
         }
@@ -210,7 +232,14 @@ class RecorderService : Service() {
         Live.group.value = group
         Live.title.value = makeTitle()
         paused = false; silentMs = 0
+        safetyW = sw
+        warnedBattery = false; warnedStorage = false; tickN = 0
         writer = w
+        // Nhạc / Hát: Thâu Chồng + Máy Đếm Nhịp
+        odStart = -1; odUri = ""
+        if (!isCall && Live.overdubUri.value.isNotEmpty()) { odUri = Live.overdubUri.value; odStart = w.frames; Overdub.start(this, w.frames) }
+        if (!isCall && Prefs.metronome.value) Metronome.start()
+        if (!isCall) sessionOn()
         Live.state.value = RecState.RECORDING
         if (Live.startAt.longValue > 0) Live.startAt.longValue = 0
         holdWake()
@@ -219,8 +248,8 @@ class RecorderService : Service() {
         tick()
     }
 
-    private fun pause() { if (Live.state.value == RecState.RECORDING) { paused = true; Live.state.value = RecState.PAUSED; buzz() } }
-    private fun resume() { if (Live.state.value == RecState.PAUSED) { paused = false; Live.state.value = RecState.RECORDING; buzz() } }
+    private fun pause() { if (Live.state.value == RecState.RECORDING) { paused = true; Live.state.value = RecState.PAUSED; Overdub.pause(true); buzz() } }
+    private fun resume() { if (Live.state.value == RecState.PAUSED) { paused = false; Live.state.value = RecState.RECORDING; Overdub.pause(false); buzz() } }
 
     private fun mark() {
         if (!Live.recording) return
@@ -248,8 +277,12 @@ class RecorderService : Service() {
         }
         val w = writer ?: run { if (!armed) { stopCapture(); stopIfIdle() }; return }
         writer = null
+        val sw = safetyW; safetyW = null
         synchronized(this) { }   // let the capture thread finish its write
         try { w.close() } catch (_: Exception) { }
+        try { sw?.close() } catch (_: Exception) { }
+        sessionOff(); Metronome.stop(); Overdub.stop()
+        val od = if (odStart >= 0 && odUri.isNotEmpty()) odUri to odStart else null
         val marks = Live.marks.toList()
         val callNo = callNumber
         val wasCall = isCall
@@ -261,7 +294,7 @@ class RecorderService : Service() {
         if (wasCall) speaker(false)
         isCall = false
         if (!save || w.dataBytes == 0L) {
-            w.file.delete()
+            w.file.delete(); sw?.file?.delete()
             Live.state.value = if (standby) RecState.STANDBY else if (armed) RecState.ARMED else RecState.IDLE
             stopIfIdle(); return
         }
@@ -269,18 +302,23 @@ class RecorderService : Service() {
         Live.saveProgress.floatValue = 0f
         buzz()
         val g = group; val made = created; val dev = Live.device.value
-        thread(name = "TomsMic-save") { finish(w, title, g, made, dev, marks, wasCall, callNo) }
+        thread(name = "TomsMic-save") { finish(w, title, g, made, dev, marks, wasCall, callNo, sw, od) }
     }
 
     private fun stopIfIdle() {
         if (!standby && !armed && Live.state.value in setOf(RecState.IDLE)) {
             // stopSelf(id) does not stop if a newer command (e.g. Record right after leaving the page) is already queued
-            if (stopSelfResult(lastStartId)) ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            if (stopSelfResult(lastStartId)) {
+                stopping = true
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                try { (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).cancel(NOTIF) } catch (_: Exception) { }
+            }
         }
     }
 
     // ---------------- saving ----------------
-    private fun finish(w: WavWriter, title: String, g: String, made: Long, dev: String, marks: List<Long>, wasCall: Boolean, callNo: String) {
+    private fun finish(w: WavWriter, title: String, g: String, made: Long, dev: String, marks: List<Long>, wasCall: Boolean, callNo: String,
+                       safety: WavWriter? = null, overdub: Pair<String, Long>? = null) {
         val fmt = Prefs.format.value
         val bits = w.bits
         val outs = mutableListOf<Pair<File, Int>>()
@@ -312,6 +350,27 @@ class RecorderService : Service() {
                 main.post { Store.add(rec); latch.countDown() }
                 latch.await(5, TimeUnit.SECONDS)
             }
+            // Bản Dự Phòng −6 dB and Thâu Chồng: extra recordings next to the main one
+            val extras = mutableListOf<Pair<File, String>>()
+            if (safety != null && safety.dataBytes > 0) extras += safety.file to t(" (Safety −6 dB)", " (Dự Phòng −6 dB)")
+            if (overdub != null) try {
+                val mixed = File(cacheDir, "od_mix_$made.wav"); tmpFiles += mixed
+                Overdub.mix(this, w.file, overdub.first, overdub.second, Live.overdubLatency.intValue, Prefs.overdubMix.value, mixed)
+                extras += mixed to t(" (Overdub)", " (Thâu Chồng)")
+            } catch (_: Exception) { main.post { Live.message.value = t("Mixing with the backing track failed — the voice was kept.", "Trộn với nhạc nền không được — vẫn giữ bản giọng.") } }
+            for ((i, e) in extras.withIndex()) {
+                val (wav, suffix) = e
+                val enc = File(cacheDir, "encx_${made}_$i.${MediaSave.ext(fmt)}"); tmpFiles += enc
+                val real = Codecs.encode(wav, fmt, enc, if (fmt == "wav" && bits == 32) 32 else bits.coerceAtMost(24), Prefs.aacBitrate.value)
+                val file = if (real == "wav" && fmt == "wav" && wav.extension == "wav" && bits != 32) wav else enc
+                val uri = MediaSave.save(this, file, g, title + suffix, real)
+                val info = WavReader(wav.inputStream()).use { Triple(it.durationMs, it.sampleRate, it.channels) }
+                val rec = Rec(UUID.randomUUID().toString(), title + suffix, made, info.first, real, info.second, info.third, if (real == "wav" || real == "flac") bits.coerceAtMost(24) else 16,
+                    MediaSave.size(this, uri), uri.toString(), g, dev, marks.toMutableList(), peaks = try { Codecs.peaks(wav) } catch (_: Exception) { "" }, safety = suffix.contains("6 dB"))
+                val latch = CountDownLatch(1)
+                main.post { Store.add(rec); latch.countDown() }
+                latch.await(5, TimeUnit.SECONDS)
+            }
             main.post {
                 Live.lastSaved.value = ids.first()
                 Live.message.value = t("Saved in Music/Tom's Mic/Recordings.", "Đã lưu vào Music/Tom's Mic/Recordings.")
@@ -328,6 +387,7 @@ class RecorderService : Service() {
             } catch (_: Exception) { }
             main.post { Live.message.value = t("Saving the chosen format failed, the WAV file was kept.", "Không lưu được định dạng đã chọn, đã giữ file WAV.") }
         } finally {
+            safety?.file?.let { tmpFiles += it }
             tmpFiles.forEach { try { it.delete() } catch (_: Exception) { } }
             main.post {
                 Live.state.value = if (standby) RecState.STANDBY else if (armed) RecState.ARMED else RecState.IDLE
@@ -418,7 +478,8 @@ class RecorderService : Service() {
             ring = FloatArray(sr * ch * 10); ringPos = 0; ringFill = 0
             val meter = LevelMeter(ch, sr)
             val chunk = sr / 50 * ch
-            val f = FloatArray(chunk); val s = ShortArray(chunk)
+            val f = FloatArray(chunk); val s = ShortArray(chunk); val sf = FloatArray(chunk)
+            val tun = FloatArray(2048); var tunFill = 0; var tunSkip = 0
             ok = true
             main.post {
                 Live.channels.intValue = ch; Live.sampleRate.intValue = sr
@@ -430,6 +491,36 @@ class RecorderService : Service() {
             while (alive) {
                 val n = if (isFloat) ar.read(f, 0, chunk, AudioRecord.READ_BLOCKING) else { val k = ar.read(s, 0, chunk); for (i in 0 until max(0, k)) f[i] = s[i] / 32768f; k }
                 if (n <= 0) { SystemClock.sleep(5); continue }
+                // Độ nhạy (gain) → Bản Dự Phòng −6 dB (before the limiter) → bộ chặn chống vỡ tiếng
+                val gDb = if (forCall) 0f else Prefs.gainDb.value
+                val g = if (gDb == 0f) 1f else Math.pow(10.0, gDb / 20.0).toFloat()
+                var peak = 0f
+                for (i in 0 until n) { val v = f[i] * g; f[i] = v; sf[i] = (v * 0.5f).coerceIn(-1f, 1f); val a = if (v < 0) -v else v; if (a > peak) peak = a }
+                if (Prefs.limiter.value && !forCall) {
+                    val thr = 0.89f                                   // −1 dBFS
+                    var env = limEnv
+                    for (i in 0 until n) {
+                        val a = if (f[i] < 0) -f[i] else f[i]
+                        val target = if (a * env > thr) thr / a else 1f
+                        env = if (target < env) target else env + (target - env) * 0.0004f
+                        f[i] = (f[i] * env).coerceIn(-1f, 1f)
+                    }
+                    limEnv = env
+                } else for (i in 0 until n) f[i] = f[i].coerceIn(-1f, 1f)
+                if (peak >= 0.995f && writer != null) {
+                    val now0 = SystemClock.uptimeMillis()
+                    main.post { Live.clip.longValue = System.currentTimeMillis() }
+                    if (Prefs.clipWarn.value && now0 - lastClipWarn > 2500) { lastClipWarn = now0; Haptics.warn(this@RecorderService) }
+                }
+                // Bộ Lên Dây Đàn
+                if (Live.tuner.value) {
+                    var i = 0
+                    while (i < n) { if (tunFill < tun.size) tun[tunFill++] = f[i]; i += ch }
+                    if (tunFill >= tun.size) {
+                        if (++tunSkip % 2 == 0) { val hz = Pitch.yin(tun, tun.size, sr); main.post { Live.pitchHz.floatValue = hz } }
+                        System.arraycopy(tun, 1024, tun, 0, 1024); tunFill = 1024
+                    }
+                }
                 meter.feed(f, n)
                 val now = SystemClock.uptimeMillis()
                 if (now - lastLevelPost > 40) {
@@ -444,7 +535,7 @@ class RecorderService : Service() {
                         val db = max(meter.db[0], meter.db[minOf(1, ch - 1)])
                         silentMs = if (db < -50f) silentMs + chunkMs else 0
                         val skip = Prefs.skipSilenceRec.value && silentMs > 1500
-                        if (!skip) w.write(f, n)
+                        if (!skip) { w.write(f, n); safetyW?.write(sf, n) }
                         val el = w.durationMs
                         main.post { Live.elapsed.longValue = el }
                         val auto = Prefs.autoStopSilence.value
@@ -552,12 +643,101 @@ class RecorderService : Service() {
         val pending = pendingStopMinutes
         if (pending > 0 && Live.stopAt.longValue == 0L) Live.stopAt.longValue = System.currentTimeMillis() + pending * 60_000L
         if (Live.stopAt.longValue > 0 && System.currentTimeMillis() >= Live.stopAt.longValue) { stop(true); return }
+        if (++tickN % 30 == 5 && Prefs.lowWarn.value) checkLow()
         refreshNotification()
         RecWidget.updateAll(this); MicTile.refresh(this)
         main.postDelayed({ tick() }, 1000)
     }
 
+    /** Pin yếu / bộ nhớ gần đầy while recording. */
+    private fun checkLow() {
+        try {
+            val bm = getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+            val pct = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            val charging = Build.VERSION.SDK_INT >= 23 && bm.isCharging
+            if (pct in 1..15 && !charging && !warnedBattery) {
+                warnedBattery = true
+                Live.message.value = t("Battery is at $pct% — plug in the charger, the recording keeps going.", "Pin còn $pct% — cắm sạc nhé, vẫn đang thâu.")
+                Haptics.warn(this); notifyInfo(t("Low battery", "Pin yếu") + " · $pct%")
+            }
+        } catch (_: Exception) { }
+        try {
+            val free = android.os.StatFs(cacheDir.path).availableBytes
+            if (free < 100L shl 20) {
+                Live.message.value = t("Storage is almost full — the recording was stopped and saved.", "Bộ nhớ gần đầy — đã dừng và lưu bản thâu.")
+                notifyInfo(t("Storage full — recording saved", "Hết bộ nhớ — đã lưu bản thâu"))
+                stop(true)
+            } else if (free < 500L shl 20 && !warnedStorage) {
+                warnedStorage = true
+                Live.message.value = t("Less than 500 MB left on the phone.", "Máy còn dưới 500 MB trống.")
+                Haptics.warn(this); notifyInfo(t("Storage almost full", "Bộ nhớ gần đầy"))
+            }
+        } catch (_: Exception) { }
+    }
+
+    private fun notifyInfo(text: String) {
+        try {
+            val n = NotificationCompat.Builder(this, App.CH_INFO).setSmallIcon(R.drawable.g_mic).setContentTitle("Tom's Mic").setContentText(text).setAutoCancel(true).build()
+            (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).notify(NOTIF + 1, n)
+        } catch (_: Exception) { }
+    }
+
+    // ---------------- headset / Bluetooth button ----------------
+    private var presses = 0
+    private var longFired = false
+    private val longPress = Runnable { longFired = true; presses = 0; if (Live.recording) stop(true) }
+    private val countPresses = Runnable {
+        val p = presses; presses = 0
+        if (!Live.recording) return@Runnable
+        if (p >= 2) { if (paused) resume() else pause() } else if (p == 1) mark()
+        refreshNotification()
+    }
+
+    private fun sessionOn() {
+        if (!Prefs.headsetCtrl.value || session != null) return
+        try {
+            session = MediaSession(this, "TomsMic").apply {
+                setCallback(object : MediaSession.Callback() {
+                    override fun onMediaButtonEvent(i: Intent): Boolean {
+                        val e = IntentCompat.getParcelableExtra(i, Intent.EXTRA_KEY_EVENT, KeyEvent::class.java) ?: return false
+                        if (e.keyCode !in setOf(KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE)) return false
+                        when (e.action) {
+                            KeyEvent.ACTION_DOWN -> if (e.repeatCount == 0) { longFired = false; main.postDelayed(longPress, 900) }
+                            KeyEvent.ACTION_UP -> {
+                                main.removeCallbacks(longPress)
+                                if (!longFired) { presses++; main.removeCallbacks(countPresses); main.postDelayed(countPresses, 450) }
+                            }
+                        }
+                        return true
+                    }
+                }, main)
+                setPlaybackState(PlaybackState.Builder().setActions(PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE)
+                    .setState(PlaybackState.STATE_PLAYING, 0, 1f).build())
+                isActive = true
+            }
+            // Android gives the buttons to the app that played sound last: play a moment of silence
+            thread(name = "TomsMic-silence") {
+                try {
+                    val at = AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                        .setAudioFormat(AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                        .setBufferSizeInBytes(9600).setTransferMode(AudioTrack.MODE_STREAM).build()
+                    at.play(); at.write(ShortArray(4800), 0, 4800); SystemClock.sleep(150); at.stop(); at.release()
+                } catch (_: Exception) { }
+            }
+        } catch (_: Exception) { session = null }
+    }
+
+    private fun sessionOff() {
+        main.removeCallbacks(longPress); main.removeCallbacks(countPresses)
+        try { session?.isActive = false; session?.release() } catch (_: Exception) { }
+        session = null
+    }
+
+    /** The notification is only kept while it means something: recording, timer, call standby, saving (or the Record page listening). */
+    private fun needed() = !stopping && (Live.recording || standby || armed || Live.state.value in setOf(RecState.WAITING, RecState.SAVING, RecState.COUNTDOWN, RecState.STANDBY))
+
     fun refreshNotification() {
+        if (!needed()) return
         try { (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).notify(NOTIF, buildNotification()) } catch (_: Exception) { }
     }
 
@@ -574,6 +754,7 @@ class RecorderService : Service() {
             RecState.WAITING -> t("Will record at ", "Sẽ thâu lúc ") + SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(Live.startAt.longValue))
             RecState.STANDBY -> t("Ready to record calls", "Sẵn sàng thâu cuộc gọi")
             RecState.COUNTDOWN -> t("Starting…", "Sắp thâu…")
+            RecState.ARMED -> t("Listening on the Record page (keeps the last 10 s)", "Đang nghe ở trang Thâu (giữ 10 giây trước)")
             else -> t("Microphone ready", "Micro sẵn sàng")
         }
         val sub = listOf(Live.title.value.takeIf { Live.recording }, Live.device.value, if (Live.marks.isNotEmpty()) "⚑ ${Live.marks.size}" else null).filterNotNull().filter { it.isNotEmpty() }.joinToString(" · ")
@@ -618,7 +799,7 @@ class RecorderService : Service() {
         const val A_PAUSE = "pause"; const val A_RESUME = "resume"; const val A_PAUSE_TOGGLE = "pause_toggle"
         const val A_STOP = "stop"; const val A_CANCEL = "cancel"; const val A_MARK = "mark"; const val A_SCHEDULE = "schedule"
         const val A_STANDBY_ON = "standby_on"; const val A_STANDBY_OFF = "standby_off"; const val A_CALL_START = "call_start"; const val A_CALL_END = "call_end"
-        const val A_DEVICE = "device"
+        const val A_DEVICE = "device"; const val A_TUNER_ON = "tuner_on"; const val A_TUNER_OFF = "tuner_off"
         @Volatile var running: RecorderService? = null
 
         fun send(ctx: Context, action: String, extra: (Intent) -> Unit = {}) {

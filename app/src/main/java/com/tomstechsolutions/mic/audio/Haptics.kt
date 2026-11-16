@@ -14,8 +14,21 @@ object Haptics {
     } catch (_: Exception) { null }
 
     @Suppress("DEPRECATION")
-    fun tick(ctx: Context, ms: Long = 30) {
+    fun tick(ctx: Context, ms: Long = 30, light: Boolean = false) {
         val v = vibrator(ctx) ?: return
-        try { if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)) else v.vibrate(ms) } catch (_: Exception) { }
+        try {
+            when {
+                light && Build.VERSION.SDK_INT >= 29 -> v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+                Build.VERSION.SDK_INT >= 26 -> v.vibrate(VibrationEffect.createOneShot(if (light) 12 else ms, if (light) 80 else VibrationEffect.DEFAULT_AMPLITUDE))
+                else -> v.vibrate(if (light) 12 else ms)
+            }
+        } catch (_: Exception) { }
+    }
+
+    /** Two strong pulses: sound is too loud (clipping). */
+    @Suppress("DEPRECATION")
+    fun warn(ctx: Context) {
+        val v = vibrator(ctx) ?: return
+        try { if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 60, 80, 60), -1)) else v.vibrate(longArrayOf(0, 60, 80, 60), -1) } catch (_: Exception) { }
     }
 }

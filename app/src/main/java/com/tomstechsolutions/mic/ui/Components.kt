@@ -29,6 +29,16 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.material3.ripple
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,11 +52,37 @@ import com.tomstechsolutions.mic.t
 
 val th get() = Themes.now()
 
+/** Solid background for dialogs and menus in the current theme (Kính Mờ cards are see-through). */
+val MTheme.dialogBg: Color get() = when (key) { "frosted" -> Color(0xFF1B3242); "dark" -> Color(0xFF1E1F22); else -> Color.White }
+
+/** Press effect on everything you can tap: sinks a little + a ripple in the theme colour. */
+@Composable
+fun Modifier.tap(enabled: Boolean = true, sink: Float = 0.95f, onLong: (() -> Unit)? = null, onClick: () -> Unit): Modifier {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val fx = Prefs.pressFx.value
+    val sc by animateFloatAsState(if (pressed && fx) sink else 1f, tween(110), label = "sink")
+    val ind = if (fx) ripple(color = th.accent) else null
+    return this.graphicsLayer { scaleX = sc; scaleY = sc }
+        .combinedClickable(interactionSource = src, indication = ind, enabled = enabled, onLongClick = onLong) {
+            if (fx && Prefs.haptics.value) com.tomstechsolutions.mic.audio.Haptics.tick(com.tomstechsolutions.mic.App.ctx, light = true)
+            onClick()
+        }
+}
+
+/** AlertDialog in the theme's colours (dark theme = dark box with light text, light themes = white box with dark text). */
+@Composable
+fun TDialog(onDismissRequest: () -> Unit, confirmButton: @Composable () -> Unit, modifier: Modifier = Modifier, dismissButton: (@Composable () -> Unit)? = null,
+            title: (@Composable () -> Unit)? = null, text: (@Composable () -> Unit)? = null) {
+    TDialog(onDismissRequest = onDismissRequest, confirmButton = confirmButton, modifier = modifier, dismissButton = dismissButton, title = title, text = text,
+        containerColor = th.dialogBg, titleContentColor = th.text, textContentColor = th.text, iconContentColor = th.accent)
+}
+
 @Composable
 fun MCard(modifier: Modifier = Modifier, bg: Color = th.card, pad: Int = 12, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(th.radius)
-    Column(modifier.fillMaxWidth().padding(bottom = 10.dp).clip(shape).background(bg).border(BorderStroke(1.dp, th.border), shape)
-        .let { if (onClick != null) it.clickable { onClick() } else it }.padding(pad.dp), content = content)
+    Column(modifier.fillMaxWidth().padding(bottom = 10.dp).let { if (onClick != null) it.tap(sink = 0.98f) { onClick() } else it }
+        .clip(shape).background(bg).border(BorderStroke(1.dp, th.border), shape).padding(pad.dp), content = content)
 }
 
 @Composable
@@ -70,7 +106,7 @@ fun Body(text: String, colour: Color = th.text, size: Int = 14, bold: Boolean = 
 fun Chip(text: String, on: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Box(Modifier.padding(end = 6.dp, bottom = 6.dp).clip(shape).background(if (on) th.accent else th.card).border(1.dp, if (on) th.accent else th.border, shape)
-        .clickable { onClick() }.padding(horizontal = 12.dp, vertical = 7.dp)) {
+        .tap { onClick() }.padding(horizontal = 12.dp, vertical = 7.dp)) {
         Text(text, color = if (on) th.onAccent else th.text, fontSize = 13.sp, maxLines = 1, softWrap = false)
     }
 }
@@ -88,7 +124,7 @@ fun Tag(text: String, bg: Color = Color(0xFFFDEBC8), fg: Color = Color(0xFF7A4A0
 @Composable
 fun Btn(text: String, modifier: Modifier = Modifier, filled: Boolean = true, colour: Color = th.accent, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
-    Box(modifier.padding(2.dp).clip(shape).background(if (filled) colour else Color.Transparent).border(1.dp, colour, shape).clickable { onClick() }
+    Box(modifier.padding(2.dp).tap { onClick() }.clip(shape).background(if (filled) colour else Color.Transparent).border(1.dp, colour, shape)
         .padding(horizontal = 12.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
         Text(text, color = if (filled) (if (colour == th.accent) th.onAccent else Color.White) else colour, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2)
     }
@@ -96,12 +132,12 @@ fun Btn(text: String, modifier: Modifier = Modifier, filled: Boolean = true, col
 
 @Composable
 fun RoundBtn(glyph: String, label: String, size: Int = 64, bg: Color = th.card, fg: Color = th.text, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onClick() }.padding(4.dp)) {
-        Box(Modifier.size(size.dp).clip(CircleShape).background(bg).border(1.dp, th.border, CircleShape), contentAlignment = Alignment.Center) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+        Box(Modifier.size(size.dp).tap(sink = 0.9f) { onClick() }.clip(CircleShape).background(bg).border(1.dp, th.border, CircleShape), contentAlignment = Alignment.Center) {
             Text(glyph, color = fg, fontSize = (size / 3).sp)
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = th.muted, fontSize = 11.sp, maxLines = 1)
+        Text(label, color = th.muted, fontSize = if (size >= 60) 13.sp else 12.sp, maxLines = 1)
     }
 }
 
@@ -149,7 +185,7 @@ fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
 /** Simple choose-one dialog. */
 @Composable
 fun PickDialog(title: String, items: List<Pair<String, String>>, current: String, onPick: (String) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Close", "Đóng")) } },
+    TDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = onDismiss) { Text(t("Close", "Đóng")) } },
         title = { Text(title) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {

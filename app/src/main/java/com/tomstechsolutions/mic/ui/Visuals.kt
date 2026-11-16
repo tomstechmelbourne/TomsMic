@@ -1,4 +1,4 @@
-// Copied from Tom's Jukebox (same wave code, as Tom asked) — do not edit here, edit in Jukebox and copy again.
+// Copied from Tom's Jukebox (same wave code, as Tom asked). Tom's Mic adds 84–98 (Visuals5.kt) for recording.
 package com.tomstechsolutions.mic.ui
 
 import androidx.compose.ui.geometry.CornerRadius
@@ -120,7 +120,8 @@ fun DrawScope.drawViz(style: Int, time: Float, lv: FloatArray, cols: List<Color>
         }
         in 12..35 -> drawViz2(style, time, lv, cols)
         in 36..69 -> drawViz3(style, time, lv, cols)
-        in 70..89 -> drawViz4(style, time, lv, cols)
+        in 70..83 -> drawViz4(style, time, lv, cols)
+        in 84..99 -> drawViz5(style, time, lv, cols)
         else -> waves(time, lv, cols, 0.9f, soft = true)
     }
 }

@@ -39,6 +39,12 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in app/signing.enc -pass env:SIGN_SECRET | tar -x -C app
       - name: Get whisper.cpp (speech to text on the phone)
         run: git clone --depth 1 --branch v1.7.6 https://github.com/ggml-org/whisper.cpp app/src/main/cpp/whisper.cpp
+      - name: Get LAME (MP3 encoder, LGPL)
+        run: |
+          mkdir -p app/src/main/cpp/lame && cd app/src/main/cpp/lame
+          git init -q && git remote add origin https://github.com/lameproject/lame
+          git fetch -q --depth 1 origin 1f5cc9487284d5950343aa5d4f70de433468070a && git checkout -q FETCH_HEAD
+          ls libmp3lame/lame.c
       - uses: gradle/actions/setup-gradle@v4
       - name: Build release APK (API 37, falls back to 36)
         run: |

@@ -10,6 +10,9 @@ val tjSdk = (project.findProperty("tj.sdk") as String?)?.toIntOrNull() ?: 36
 val signProps = Properties().apply { val f = file("signing.properties"); if (f.exists()) f.inputStream().use { load(it) } }
 // whisper.cpp source is fetched by the workflow into src/main/cpp/whisper.cpp
 val hasWhisper = file("src/main/cpp/whisper.cpp/CMakeLists.txt").exists()
+// LAME (MP3 encoder, LGPL) is fetched by the workflow into src/main/cpp/lame
+val hasLame = file("src/main/cpp/lame/libmp3lame/lame.c").exists()
+val hasNative = hasWhisper || hasLame
 
 android {
     namespace = "com.tomstechsolutions.mic"
@@ -19,16 +22,17 @@ android {
         applicationId = "com.tomstechsolutions.mic"
         minSdk = 24
         targetSdk = tjSdk
-        versionCode = 900
-        versionName = "0.9.0-beta"
+        versionCode = 910
+        versionName = "0.9.1-beta"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("boolean", "HAS_WHISPER", hasWhisper.toString())
-        if (hasWhisper) {
+        buildConfigField("boolean", "HAS_MP3", hasLame.toString())
+        if (hasNative) {
             ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
-            externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_static"); cppFlags += "-std=c++17" } }
+            externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_static", "-DTM_WHISPER=" + (if (hasWhisper) "ON" else "OFF"), "-DTM_LAME=" + (if (hasLame) "ON" else "OFF")); cppFlags += "-std=c++17" } }
         }
     }
-    if (hasWhisper) {
+    if (hasNative) {
         externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
     }
 
